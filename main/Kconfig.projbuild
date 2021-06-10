@@ -1,0 +1,36 @@
+# put here your custom config value
+menu "Monitor Power to MQTT confgiuration"
+config MPTM_WIFI_SSID
+    string "WiFi SSID"
+    default "SSID_GOES_HERE"
+    help
+	SSID (network name) to connect to.
+
+config MPTM_WIFI_PASSWORD
+    string "WiFi Password"
+    default "PASSWORD_GOES_HERE"
+    help
+	WiFi password (WPA or WPA2) to use.
+
+config MPTM_MQTT_BROKER_URI
+    string "MQTT Broker URI"
+    default "mqtt://192.168.10.1"
+    help
+  The URI of the MQTT broker that will receive the values. Format is mqtt://<HOSTNAME>
+
+config MPTM_VE_NETWORKING_NETWORK_ID
+    string "The network identifier (4 hex digits). See help for details"
+    default "010A"
+    help
+    What network id will this device be listenning for. You can obtain that network ID from the victron connect app in the VE.Smart networking settings.
+
+config MPTM_VE_NETWORKING_KEY
+    string "The AES-128 key used to encrypt the network traffic. See help for details. Format is 32 HEX digits."
+    default ""
+    help
+    You can obtain the network key from the com.victronenergy.victronconnect app. Extracting the network key takes a bit of work and is different depending on the device. 
+    On android, I backed up my device, and extracted the com.victronenergy.victronconnect app files. in there I found   
+    sqlite> select * from networks;
+    b36f|2d0d8181b414c70cfb62aad46480c329|Net1
+
+endmenu
