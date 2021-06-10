@@ -1,9 +1,23 @@
-monitorPowerToMQTT
-====================
+What is this?
+==
+
+This project reads the victron energy MPPT bluetooth packets and sends them to a MQTT broker. 
+
+This is the first open source attempt at documenting the VE.Smart bluetooth protocol. If enough interest, we should make it a stand alone library.
+
+Installation
+==
+This project runs on ESP32 and is built with ESP-IDF. The installation steps are
+
+	idf.py menuconfig
+	idf.py flash monitor should
+
 
 TODO
-- Go to sleep when solar panels are off
+==
 - MQTT topic should contain the mppt serial number, not the mac address
+- Get the AES key from the MPPT devices. We will need to connect to the MPPT, send the PIN, issue some commands to get the AES key. Is that even possible?
+- Go to sleep when solar panels are off
 
 MQTT Schema
 ===========
