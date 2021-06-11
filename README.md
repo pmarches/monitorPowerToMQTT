@@ -15,9 +15,9 @@ This project runs on ESP32 and is built with ESP-IDF. The installation steps are
 
 TODO
 ==
-- MQTT topic should contain the mppt serial number, not the mac address
-- Get the AES key from the MPPT devices. We will need to connect to the MPPT, send the PIN, issue some commands to get the AES key. Is that even possible?
+- Get the AES key from the MPPT devices instead the klunky app hack. We will need to connect to the MPPT, send the PIN, issue some commands to get the AES key. Is that even possible?
 - Go to sleep when solar panels are off
+
 
 MQTT Schema
 ===========
