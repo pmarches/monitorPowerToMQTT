@@ -25,11 +25,11 @@ void serialBytesToHumanRedable(uint8_t* serialBytes, char humanStr[12]){
   humanStr[3]= 'y';
   humanStr[4]= 'w'; //TODO Week of manufacture
   humanStr[5]= 'w';
-  humanStr[6]= BASE36[((int)((ulong)serial / 0x19a100) + (int)(((ulong)serial / 0x19a100) / 36) * -36)];
-  humanStr[7]= BASE36[((int)((ulong)serial / 0xb640) + (int)(((ulong)serial / 0xb640) / 36) * -36)];
-  humanStr[8]= BASE36[((int)((ulong)serial / 0x510) + (int)(((ulong)serial / 0x510) / 36) * -36)];
+  humanStr[6]= BASE36[((int)((ulong)serial / 0x19a100) + (int)(((unsigned long long)serial / 0x19a100) / 36) * -36)];
+  humanStr[7]= BASE36[((int)((ulong)serial / 0xb640) + (int)(((unsigned long long)serial / 0xb640) / 36) * -36)];
+  humanStr[8]= BASE36[((int)((ulong)serial / 0x510) + (int)(((unsigned long long)serial / 0x510) / 36) * -36)];
   int div36 = (int)((ulong)serial / 36);
-  humanStr[9]= BASE36[(div36 + (int)(((ulong)serial / 36) / 36) * -36)];
+  humanStr[9]= BASE36[(div36 + (int)(((unsigned long long)serial / 36) / 36) * -36)];
   humanStr[10]= BASE36[serial - div36 * 36];
   humanStr[11]=0;
 }
