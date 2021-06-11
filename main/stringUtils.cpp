@@ -1,6 +1,13 @@
+#ifdef SPIKER
+#define ESP_LOGE //ESP_LOGE
+#else
 #include <esp_log.h>
+#endif
+
 #include <memory.h>
 #include <cstdio>
+#include <stdint.h>
+#include <cstdlib>
 
 static int char2int(char input) {
   if(input >= '0' && input <= '9')

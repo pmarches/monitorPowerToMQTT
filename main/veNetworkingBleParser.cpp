@@ -10,6 +10,9 @@
 char* bytesToHex(uint8_t* bytes, int bytesLen);
 size_t hexToBytes(const char* hexString, uint8_t* resultByteArr, size_t resultByteArrSize);
 
+//veAddress.cpp
+void serialBytesToHumanRedable(uint8_t* serialBytes, char humanStr[12]);
+
 uint8_t g_networkId[2]={0,0};
 mbedtls_aes_context aesCtx;
 
@@ -59,8 +62,8 @@ bool shouldRegisterBePublished(uint16_t veRegister) {
   return true;
 }
 
-void parseCleartextVeNetworkingBytes(uint8_t* macAddress, uint8_t* serial, uint8_t* clearText, uint8_t clearTextLen){
-  char* serialHexStr=bytesToHex(serial, VE_NETWORKING_SERIAL_BYTE_LEN);
+void parseCleartextVeNetworkingBytes(uint8_t* macAddress, uint8_t* serialBytes, uint8_t* clearText, uint8_t clearTextLen){
+  char* serialHexStr=bytesToHex(serialBytes, VE_NETWORKING_SERIAL_BYTE_LEN);
   char* clearTextHexStr=bytesToHex(clearText, clearTextLen);
   char* macHexStr=macToStr(macAddress);
 #if 0
@@ -97,7 +100,10 @@ void parseCleartextVeNetworkingBytes(uint8_t* macAddress, uint8_t* serial, uint8
       i+=*nbBytesForValue;
 
       if(shouldRegisterBePublished(*veRegister)){
-        sprintf(topicStr, "venetworking/%s/%04X", macHexStr, *veRegister);
+        char humanReadableSerial[12];
+//        uint32_t serial=*((unsigned int*));
+        serialBytesToHumanRedable(serialBytes, humanReadableSerial);
+        sprintf(topicStr, "venetworking/%s/%04X", humanReadableSerial, *veRegister);
         publishToMQTT(topicStr, valueStr);
       }
     }
@@ -259,7 +265,7 @@ bool aesCCMDecrypt(uint8_t* ivBytes, uint8_t* cipherText, uint8_t cipherTextLen,
   return isMessageDecryptedOk;
 }
 
-extern void parseCleartextVeNetworkingBytes(uint8_t* macAddress, uint8_t* serial, uint8_t* clearText, uint8_t clearTextLen);
+extern void parseCleartextVeNetworkingBytes(uint8_t* macAddress, uint8_t* serialBytes, uint8_t* clearText, uint8_t clearTextLen);
 
 void onVeNetworkingMsgReceived(uint8_t* macAddress, uint8_t* manufacturer_data, uint8_t manufacturer_data_len){
   ESP_LOGD(__FUNCTION__, "Begin manufacturer_data_len=%d", manufacturer_data_len);
