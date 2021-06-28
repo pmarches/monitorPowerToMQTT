@@ -3,4 +3,4 @@
 phy_init,   data, phy,      ,0x1000,
 factory,    app,  factory,  ,2M,
 nvs,        data, nvs,      ,0x6000,
-app,  0x40, 0x83,     ,0x6000,
+myapp,  0x40, 0x83,     ,0x6000,

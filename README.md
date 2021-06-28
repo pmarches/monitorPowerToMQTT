@@ -17,6 +17,25 @@ TODO
 ==
 - Get the AES key from the MPPT devices instead the klunky app hack. We will need to connect to the MPPT, send the PIN, issue some commands to get the AES key. Is that even possible?
 - Go to sleep when solar panels are off
+- Add support for mDNS lookup of the MQTT broker
+- Augment the MPPT data with stats such as max yield, min/max battery voltage
+- Make the values more human readable instead of the basic registers? Maybe put the registers in one topic, and the human readable in other topics?
+
+
+Data augmentation
+==
+- Min/Max/Median/Avg
+- Network 
+  - yield (min/max/median) over multiple days
+  - Lifetime yield
+- How much time was spent in negative yield? (Too much load)
+- Daily battery consumption
+- Daily solar consumption (yield)
+- At what time 
+  - did the solar start producing?
+  - was the production greater or equal to the consumption?
+  - did the solar stop producing?
+  - 
 
 
 MQTT Schema
@@ -26,10 +45,10 @@ MQTT Schema
         0100  HEX Model type, capabilities and so on. 62A0==150|60, ...
         0102  HEX The firmware version in HEX
         2000  Only set on the mater mppt, 10 indicates master status?
-        2001  maybe target charge voltage. Does not change quickly, only on master device. Or Maybe max batt voltage? Seen 1419 1420
+        2001  maybe target charge voltage. Does not change quickly, only on master device. Or Maybe max batt voltage? Seen 1419 1420 1424
         2007  Yield Network watts produced? Only seen on master
         2008  Yield MPPT today
-        200b  some battery voltage, seen 1219 1229 1242, only on master
+        200b  seen 1219 1229 1242 1246, only on master. Looks slow monotonic. Maybe day number?
         200c  Values seen: 3, 5 only on master (Maybe bulk/Float/Abs mode?)
         2027  Network total power (CentiWatt)
         ed8c  MPPT output amps on battery side (CentiAmps)

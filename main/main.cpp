@@ -10,6 +10,11 @@ void configureWifiNetworking();
 void configureMQTT();
 void configureBLENetworking();
 void configureVeNetworking();
+void configureMasterbus();
+//void startTaskForwardCMasterBusPacketsToMQTT();
+void taskForwardCMasterBusPacketsToMQTT();
+void configureMqttAugmentation();
+void uploadCoreDumpFromFlashIntoMQTTTopic();
 
 void configureFlash(){
   esp_err_t ret=ESP_OK;
@@ -21,10 +26,18 @@ void configureFlash(){
   ESP_ERROR_CHECK( ret );
 }
 
+
 extern "C" void app_main(void) {
+  configureMasterbus();
   configureFlash();
   configureWifiNetworking();
   configureMQTT();
+
+  uploadCoreDumpFromFlashIntoMQTTTopic();
+
   configureBLENetworking();
   configureVeNetworking();
+//  startTaskForwardCMasterBusPacketsToMQTT();
+  taskForwardCMasterBusPacketsToMQTT();
+  configureMqttAugmentation();
 }

@@ -61,7 +61,7 @@ void resolve_mdns_host(const char *host_name) {
 
 void publishToMQTT(const char* topic, const char* value){
   if(isMqttConnected==false) return;
-  ESP_LOGD(__FUNCTION__, "topic=%s value=%s", topic, value);
+  ESP_LOGD(__FUNCTION__, "publish topic=%s value=%s", topic, value);
   int qos=0;
   int retain=0;
 #if 1
