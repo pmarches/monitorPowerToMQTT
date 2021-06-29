@@ -30,6 +30,7 @@ void configureFlash(){
 extern "C" void app_main(void) {
   configureMasterbus();
   configureFlash();
+
   configureWifiNetworking();
   configureMQTT();
 

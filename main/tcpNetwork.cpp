@@ -116,6 +116,10 @@ void configureWifiNetworking() {
   ESP_ERROR_CHECK(esp_wifi_set_mode(WIFI_MODE_STA));
   ESP_ERROR_CHECK(esp_wifi_set_config(WIFI_IF_STA, &wifi_config));
   ESP_ERROR_CHECK(esp_wifi_start());
+  //The sdkconfig settings seem to working better than this API
+  //We need to reduce the power consumption at boot time otherwise, the masterview starves and reboots. Maybe we need to add some capacitors to reduce the power spikes?
+  //Remove the power & charging LED?
+//  ESP_ERROR_CHECK(esp_wifi_set_max_tx_power(8));
 #endif
 }
 

@@ -15,6 +15,7 @@ MasterbusController* g_mbctl;
 
 void configurePinAsOutput(gpio_num_t pin);
 void publishToMQTT(const char* topic, const char* value);
+char* bytesToHex(uint8_t* bytes, int bytesLen);
 
 void initializeMasterbus(){
   ESP_LOGD(__FUNCTION__, "Begin");
@@ -36,12 +37,16 @@ void initializeMasterbus(){
   ESP_ERROR_CHECK(spiRx->init());
   MCP2515Class* mcp2515Rx=new MCP2515Class(spiRx, SPI_CS_PIN, SPI_INT_PIN, 8E6);
   g_mbctl=new MasterbusController(mcp2515Rx);
+#if 0
   while(true){
     if(g_mbctl->configure(MCP2515Class::NORMAL_MODE)==ESP_OK){
       break;
     }
     ESP_LOGW(__FUNCTION__, "Failed  to configure MCP2515, retrying");
   }
+#else
+  ESP_ERROR_CHECK(g_mbctl->configure(MCP2515Class::NORMAL_MODE));
+#endif
   ESP_LOGI(__FUNCTION__, "MCP2515 configured successfully");
 #else
   esp_err_t errRc;
@@ -172,6 +177,12 @@ void parseVariant(uint32_t canbusId, std::string stringToParse, MastervoltVarian
   }
 }
 
+void mqttPublishHexValue(const char* topic, std::string& payloadBytes){
+  char* hexBytes=bytesToHex((uint8_t*) payloadBytes.c_str(), payloadBytes.length());
+  publishToMQTT(topic, hexBytes);
+  free(hexBytes);
+}
+
 void taskForwardCMasterBusPacketsToMQTT(){
   MvParser mvParser;
   char topic[256];
@@ -192,7 +203,10 @@ void taskForwardCMasterBusPacketsToMQTT(){
       delete mvMessage;
 #else
       std::string payloadStr=rxPacket.getData();
-      printBytesSuitableForWiresharkImport((uint8_t*)&rxPacket.canId, payloadStr);
+
+      mqttPublishHexValue("masterbus/latest", payloadStr);
+
+//      printBytesSuitableForWiresharkImport((uint8_t*)&rxPacket.canId, payloadStr);
       MastervoltVariant variant;
       parseVariant(rxPacket.canId, payloadStr, variant);
       if(variant.isRequest){
