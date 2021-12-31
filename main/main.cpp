@@ -4,6 +4,8 @@
 #include <nvs_flash.h>
 #include "esp_system.h"
 #include "esp_event.h"
+#include <esp_log.h>
+
 #include <cstring>
 
 void configureWifiNetworking();
@@ -28,6 +30,10 @@ void configureFlash(){
 
 
 extern "C" void app_main(void) {
+  esp_log_level_set("*", ESP_LOG_WARN);
+  esp_log_level_set("../main/masterbusNetwork.cpp", ESP_LOG_DEBUG);
+  esp_log_level_set("../main/MCP2515.cpp", ESP_LOG_DEBUG);
+
   configureMasterbus();
   configureFlash();
 
@@ -38,7 +44,8 @@ extern "C" void app_main(void) {
 
   configureBLENetworking();
   configureVeNetworking();
-//  startTaskForwardCMasterBusPacketsToMQTT();
+
+  //  startTaskForwardCMasterBusPacketsToMQTT();
   taskForwardCMasterBusPacketsToMQTT();
   configureMqttAugmentation();
 }

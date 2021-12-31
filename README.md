@@ -16,7 +16,9 @@ This project runs on ESP32 and is built with ESP-IDF. The installation steps are
 TODO
 ==
 - Get the AES key from the MPPT devices instead the klunky app hack. We will need to connect to the MPPT, send the PIN, issue some commands to get the AES key. Is that even possible?
-- Go to sleep when solar panels are off
+- Reduce power usage because we seem to draw too much for the masterbus
+  - Reduce BLE power usage esp_bredr_tx_power_set
+  - Go to sleep when solar panels are off
 - Add support for mDNS lookup of the MQTT broker
 - Augment the MPPT data with stats such as max yield, min/max battery voltage
 - Make the values more human readable instead of the basic registers? Maybe put the registers in one topic, and the human readable in other topics?

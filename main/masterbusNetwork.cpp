@@ -9,6 +9,8 @@
 #define SPI_INT_PIN (gpio_num_t)14
 
 #define MYCANCTL_BUS SPI2_HOST
+//#define TAG __FUNCTION__
+#define TAG __FILE__
 
 SPIBus spi(MYCANCTL_BUS);
 MasterbusController* g_mbctl;
@@ -18,7 +20,7 @@ void publishToMQTT(const char* topic, const char* value);
 char* bytesToHex(uint8_t* bytes, int bytesLen);
 
 void initializeMasterbus(){
-  ESP_LOGD(__FUNCTION__, "Begin");
+  ESP_LOGD(TAG, "Begin");
 
   gpio_reset_pin(SPI_CS_PIN);
   gpio_set_direction(SPI_CS_PIN, GPIO_MODE_OUTPUT);
@@ -30,7 +32,7 @@ void initializeMasterbus(){
   gpio_set_direction(SPI_MASTER_IN_SLAVE_OUT_PIN, GPIO_MODE_INPUT);
   gpio_set_direction(SPI_INT_PIN, GPIO_MODE_INPUT);
 
-  ESP_LOGD(__FUNCTION__, "init: mosi=%d, miso=%d, clk=%d, cs=%d", SPI_MASTER_OUT_SLAVE_IN_PIN, SPI_MASTER_IN_SLAVE_OUT_PIN, SPI_CLK_PIN, SPI_CS_PIN);
+  ESP_LOGD(TAG, "init: mosi=%d, miso=%d, clk=%d, cs=%d", SPI_MASTER_OUT_SLAVE_IN_PIN, SPI_MASTER_IN_SLAVE_OUT_PIN, SPI_CLK_PIN, SPI_CS_PIN);
 #if 1
   spi.init(SPI_MASTER_OUT_SLAVE_IN_PIN, SPI_MASTER_IN_SLAVE_OUT_PIN, SPI_CLK_PIN);
   SPIDevice* spiRx=new SPIDevice(&spi, SPI_CS_PIN);
@@ -42,12 +44,12 @@ void initializeMasterbus(){
     if(g_mbctl->configure(MCP2515Class::NORMAL_MODE)==ESP_OK){
       break;
     }
-    ESP_LOGW(__FUNCTION__, "Failed  to configure MCP2515, retrying");
+    ESP_LOGW(TAG, "Failed  to configure MCP2515, retrying");
   }
 #else
   ESP_ERROR_CHECK(g_mbctl->configure(MCP2515Class::NORMAL_MODE));
 #endif
-  ESP_LOGI(__FUNCTION__, "MCP2515 configured successfully");
+  ESP_LOGI(TAG, "MCP2515 configured successfully");
 #else
   esp_err_t errRc;
   gpio_num_t csPin=SPI_CS_PIN;
@@ -57,8 +59,8 @@ void initializeMasterbus(){
   gpio_num_t misoPin=SPI_MASTER_IN_SLAVE_OUT_PIN;
   gpio_num_t clkPin=SPI_CLK_PIN;
 
-  ESP_LOGD(__FUNCTION__, "init: mosi=%d, miso=%d, clk=%d, cs=%d", mosiPin, misoPin, clkPin, csPin);
-  ESP_LOGI(__FUNCTION__, "... Initializing bus; host=%d", m_host);
+  ESP_LOGD(TAG, "init: mosi=%d, miso=%d, clk=%d, cs=%d", mosiPin, misoPin, clkPin, csPin);
+  ESP_LOGI(TAG, "... Initializing bus; host=%d", m_host);
 
   spi_bus_config_t bus_config = {
     .mosi_io_num     = mosiPin, // MOSI
@@ -73,7 +75,7 @@ void initializeMasterbus(){
 
   errRc = ::spi_bus_initialize(m_host, &bus_config, 1 /*DMA Channel*/);
   if (errRc != ESP_OK) {
-    ESP_LOGE(__FUNCTION__, "spi_bus_initialize(): rc=%d", errRc);
+    ESP_LOGE(TAG, "spi_bus_initialize(): rc=%d", errRc);
     abort();
   }
   return;
@@ -94,21 +96,21 @@ void initializeMasterbus(){
   dev_config.queue_size       = 1;
   dev_config.pre_cb           = NULL;
   dev_config.post_cb          = NULL;
-  ESP_LOGI(__FUNCTION__, "... Adding device bus.");
+  ESP_LOGI(TAG, "... Adding device bus.");
   errRc = ::spi_bus_add_device(m_host, &dev_config, &m_handle);
   if (errRc != ESP_OK) {
-    ESP_LOGE(__FUNCTION__, "spi_bus_add_device(): rc=%d", errRc);
+    ESP_LOGE(TAG, "spi_bus_add_device(): rc=%d", errRc);
     abort();
   }
 
 #endif
 
-  ESP_LOGD(__FUNCTION__, "End");
+  ESP_LOGD(TAG, "End");
 }
 
 void printBytesSuitableForWiresharkImport(uint8_t* canId, std::string& canFrame){
   const int NB_BYTES_PER_LINE=16;
-
+#if 1
   printf("%06X", 0);
   printf(" %02X %02X %02X %02X", canId[0], canId[1], canId[2], canId[3]);
 
@@ -116,21 +118,26 @@ void printBytesSuitableForWiresharkImport(uint8_t* canId, std::string& canFrame)
     printf(" %02X", canFrame[i]);
   }
   printf("\n\n");
+#else
+  ESP_LOGD(TAG, "canid=%d frame length=%d", *canId, canFrame.length());
+#endif
 }
 
 void readFromMasterbusAndLog(){
-  ESP_LOGD(__FUNCTION__, "Begin");
+  ESP_LOGD(TAG, "Begin");
 //  g_mbctl->startCANBusPump();
 //  g_mbctl->pumpQueue
 
   CANBusPacket packetRead;
   while(true){
+    ESP_LOGD(TAG, "Reding packet from masterbus controller");
     if(g_mbctl->readPacket(packetRead)){
       std::string canFrame=packetRead.getData();
       printBytesSuitableForWiresharkImport((uint8_t*)&packetRead.canId, canFrame);
     }
+    vTaskDelay(100);
   }
-  ESP_LOGD(__FUNCTION__, "End");
+  ESP_LOGD(TAG, "End");
 }
 
 class MastervoltVariant {
@@ -138,7 +145,7 @@ public:
   uint16_t deviceId=0;
   uint16_t attributeId=0;
   uint8_t encoding=0;
-  enum ENCODING_TYPE {FLOAT=0x08, STRING=0x06, DATETIME};
+  enum ENCODING_TYPE {FLOAT=0x08, SHORT=0x07, STRING=0x06, DATETIME};
 
   bool isRequest=0;
   float floatValue=0;
@@ -158,8 +165,10 @@ float MastervoltVariant::asFloat(){
 void parseVariant(uint32_t canbusId, std::string stringToParse, MastervoltVariant& variant){
   uint32_t stdCanbusId=(canbusId&0xFFFC0000)>>18;
   uint32_t extCanbusId=(canbusId&0x0003FFFF);
-  ESP_LOGD(__FUNCTION__, "canbusId=0x%X stdCanbusId=0x%X stdCanbusId=0x%X", canbusId, stdCanbusId, extCanbusId);
-  ESP_LOG_BUFFER_HEX_LEVEL(__FUNCTION__, stringToParse.c_str(), stringToParse.length(), ESP_LOG_DEBUG);
+#if 0
+  ESP_LOGD(TAG, "canbusId=0x%X stdCanbusId=0x%X stdCanbusId=0x%X", canbusId, stdCanbusId, extCanbusId);
+  ESP_LOG_BUFFER_HEX_LEVEL(TAG, stringToParse.c_str(), stringToParse.length(), ESP_LOG_DEBUG);
+#endif
 
   variant.deviceId=stdCanbusId&0x3FF;
   variant.isRequest=(stdCanbusId&0x400)!=0;
@@ -167,13 +176,17 @@ void parseVariant(uint32_t canbusId, std::string stringToParse, MastervoltVarian
   const uint8_t* bytes=(const uint8_t*) stringToParse.c_str();
   variant.attributeId=*((uint16_t*) bytes);
   bytes+=2;
-  ESP_LOGD(__FUNCTION__, ".deviceId=0x%X .encoding=0x%X .attributeId=0x%X .isRequest=%d", variant.deviceId, variant.encoding, variant.attributeId, variant.isRequest);
+//  ESP_LOGD(TAG, ".deviceId=0x%X .encoding=0x%X .attributeId=0x%X .isRequest=%d", variant.deviceId, variant.encoding, variant.attributeId, variant.isRequest);
   if(MastervoltVariant::FLOAT==variant.encoding){
     variant.floatValue=*(float*)bytes;
-    ESP_LOGD(__FUNCTION__, "Interpreting bytes as float : %f", variant.floatValue);
+//    ESP_LOGD(TAG, "Interpreting bytes as float : %f", variant.floatValue);
+  }
+  else if(MastervoltVariant::SHORT==variant.encoding){
+    variant.floatValue=*(short*)bytes;
+//    ESP_LOGD(TAG, "Interpreting bytes as short : %f", variant.floatValue);
   }
   else {
-    ESP_LOGW(__FUNCTION__, "Unhandeled encoding 0x%x", variant.encoding);
+    ESP_LOGW(TAG, "Unhandeled encoding 0x%x", variant.encoding);
   }
 }
 
@@ -194,7 +207,7 @@ void taskForwardCMasterBusPacketsToMQTT(){
     if(xQueueReceive(g_mbctl->pumpQueue, &rxPacket, portMAX_DELAY)){
 #if 0
       MastervoltMessage* mvMessage= mvParser.parseVariant(rxPacket.stdCanbusId, rxPacket.extCanbusId, mvParser.stringToParse);
-      ESP_LOGI(__FUNCTION__, "Got canbus packet off the queue %s", mvMessage->toString().c_str());
+      ESP_LOGI(TAG, "Got canbus packet off the queue %s", mvMessage->toString().c_str());
       if(MastervoltMessageFloat* msgFloat=dynamic_cast<MastervoltMessageFloat*>(mvMessage)) {
         sprintf(topic, "masterbus/%X/%X", msgFloat->deviceKindId, msgFloat->attributeId);
         sprintf(valueStr, "%f", msgFloat->floatValue);
@@ -204,9 +217,9 @@ void taskForwardCMasterBusPacketsToMQTT(){
 #else
       std::string payloadStr=rxPacket.getData();
 
-      mqttPublishHexValue("masterbus/latest", payloadStr);
-
 //      printBytesSuitableForWiresharkImport((uint8_t*)&rxPacket.canId, payloadStr);
+//      mqttPublishHexValue("masterbus/latest", payloadStr);
+#if 1
       MastervoltVariant variant;
       parseVariant(rxPacket.canId, payloadStr, variant);
       if(variant.isRequest){
@@ -215,8 +228,10 @@ void taskForwardCMasterBusPacketsToMQTT(){
       if(variant.isFloat()){
         sprintf(topic, "masterbus/%03X/%04X", variant.deviceId, variant.attributeId);
         sprintf(valueStr, "%f", variant.asFloat());
+        printf("%s %s\n", topic, valueStr);
         publishToMQTT(topic, valueStr);
       }
+#endif
 #endif
     }
   }
