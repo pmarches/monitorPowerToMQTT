@@ -13,7 +13,7 @@ void configureMQTT();
 void configureBLENetworking();
 void configureVeNetworking();
 void configureMasterbus();
-//void startTaskForwardCMasterBusPacketsToMQTT();
+void startTaskForwardCMasterBusPacketsToMQTT();
 void taskForwardCMasterBusPacketsToMQTT();
 void configureMqttAugmentation();
 void uploadCoreDumpFromFlashIntoMQTTTopic();
@@ -30,22 +30,26 @@ void configureFlash(){
 
 
 extern "C" void app_main(void) {
+#if 1
   esp_log_level_set("*", ESP_LOG_WARN);
-  esp_log_level_set("../main/masterbusNetwork.cpp", ESP_LOG_DEBUG);
-  esp_log_level_set("../main/MCP2515.cpp", ESP_LOG_DEBUG);
+//  esp_log_level_set("../main/masterbusNetwork.cpp", ESP_LOG_DEBUG);
+//  esp_log_level_set("../main/MCP2515.cpp", ESP_LOG_DEBUG);
+//  esp_log_level_set("CANBUS_HEXDUMP", ESP_LOG_DEBUG);
+  esp_log_level_set("publishToMQTT", ESP_LOG_DEBUG);
+#endif
 
-  configureMasterbus();
   configureFlash();
-
   configureWifiNetworking();
   configureMQTT();
 
   uploadCoreDumpFromFlashIntoMQTTTopic();
-
+#if 0
   configureBLENetworking();
   configureVeNetworking();
+#endif
 
-  //  startTaskForwardCMasterBusPacketsToMQTT();
+  configureMasterbus();
+//  startTaskForwardCMasterBusPacketsToMQTT();
   taskForwardCMasterBusPacketsToMQTT();
   configureMqttAugmentation();
 }

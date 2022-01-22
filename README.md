@@ -1,7 +1,7 @@
 What is this?
 ==
 
-This project reads the victron energy MPPT bluetooth packets and sends them to a MQTT broker. 
+This project reads the victron energy MPPT bluetooth packets and sends them to a MQTT broker. It also reads the mastervolt data from the masterbus and forwards it to the same MQTT broker.
 
 This is the first open source attempt at documenting the VE.Smart bluetooth protocol. If enough interest, we should make it a stand alone library.
 
@@ -19,10 +19,11 @@ TODO
 - Reduce power usage because we seem to draw too much for the masterbus
   - Reduce BLE power usage esp_bredr_tx_power_set
   - Go to sleep when solar panels are off
+  - Turn off the micro controller LED to save power
+  
 - Add support for mDNS lookup of the MQTT broker
 - Augment the MPPT data with stats such as max yield, min/max battery voltage
 - Make the values more human readable instead of the basic registers? Maybe put the registers in one topic, and the human readable in other topics?
-
 
 Data augmentation
 ==

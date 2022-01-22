@@ -12,13 +12,13 @@
 //#define TAG __FUNCTION__
 #define TAG __FILE__
 
-SPIBus spi(MYCANCTL_BUS);
 MasterbusController* g_mbctl;
 
 void configurePinAsOutput(gpio_num_t pin);
 void publishToMQTT(const char* topic, const char* value);
 char* bytesToHex(uint8_t* bytes, int bytesLen);
 
+SPIBus spi(MYCANCTL_BUS);
 void initializeMasterbus(){
   ESP_LOGD(TAG, "Begin");
 
@@ -140,62 +140,13 @@ void readFromMasterbusAndLog(){
   ESP_LOGD(TAG, "End");
 }
 
-class MastervoltVariant {
-public:
-  uint16_t deviceId=0;
-  uint16_t attributeId=0;
-  uint8_t encoding=0;
-  enum ENCODING_TYPE {FLOAT=0x08, SHORT=0x07, STRING=0x06, DATETIME};
-
-  bool isRequest=0;
-  float floatValue=0;
-
-  float asFloat();
-  bool isFloat() { return encoding==FLOAT; }
-};
-
-#include <cmath>
-float MastervoltVariant::asFloat(){
-  if(encoding!=FLOAT){
-    return -666.666;
-  }
-  return floatValue;
-}
-
-void parseVariant(uint32_t canbusId, std::string stringToParse, MastervoltVariant& variant){
-  uint32_t stdCanbusId=(canbusId&0xFFFC0000)>>18;
-  uint32_t extCanbusId=(canbusId&0x0003FFFF);
-#if 0
-  ESP_LOGD(TAG, "canbusId=0x%X stdCanbusId=0x%X stdCanbusId=0x%X", canbusId, stdCanbusId, extCanbusId);
-  ESP_LOG_BUFFER_HEX_LEVEL(TAG, stringToParse.c_str(), stringToParse.length(), ESP_LOG_DEBUG);
-#endif
-
-  variant.deviceId=stdCanbusId&0x3FF;
-  variant.isRequest=(stdCanbusId&0x400)!=0;
-  variant.encoding=(uint8_t) ((canbusId&0x0F000000)>>24);
-  const uint8_t* bytes=(const uint8_t*) stringToParse.c_str();
-  variant.attributeId=*((uint16_t*) bytes);
-  bytes+=2;
-//  ESP_LOGD(TAG, ".deviceId=0x%X .encoding=0x%X .attributeId=0x%X .isRequest=%d", variant.deviceId, variant.encoding, variant.attributeId, variant.isRequest);
-  if(MastervoltVariant::FLOAT==variant.encoding){
-    variant.floatValue=*(float*)bytes;
-//    ESP_LOGD(TAG, "Interpreting bytes as float : %f", variant.floatValue);
-  }
-  else if(MastervoltVariant::SHORT==variant.encoding){
-    variant.floatValue=*(short*)bytes;
-//    ESP_LOGD(TAG, "Interpreting bytes as short : %f", variant.floatValue);
-  }
-  else {
-    ESP_LOGW(TAG, "Unhandeled encoding 0x%x", variant.encoding);
-  }
-}
-
 void mqttPublishHexValue(const char* topic, std::string& payloadBytes){
   char* hexBytes=bytesToHex((uint8_t*) payloadBytes.c_str(), payloadBytes.length());
   publishToMQTT(topic, hexBytes);
   free(hexBytes);
 }
 
+#define MQTT_TOPIC_FORMAT "masterbus/0x%02X/0x%02X"
 void taskForwardCMasterBusPacketsToMQTT(){
   MvParser mvParser;
   char topic[256];
@@ -205,40 +156,43 @@ void taskForwardCMasterBusPacketsToMQTT(){
   while(true){
     CANBusPacket rxPacket;
     if(xQueueReceive(g_mbctl->pumpQueue, &rxPacket, portMAX_DELAY)){
-#if 0
-      MastervoltMessage* mvMessage= mvParser.parseVariant(rxPacket.stdCanbusId, rxPacket.extCanbusId, mvParser.stringToParse);
-      ESP_LOGI(TAG, "Got canbus packet off the queue %s", mvMessage->toString().c_str());
-      if(MastervoltMessageFloat* msgFloat=dynamic_cast<MastervoltMessageFloat*>(mvMessage)) {
-        sprintf(topic, "masterbus/%X/%X", msgFloat->deviceKindId, msgFloat->attributeId);
+//      ESP_LOGD(__FUNCTION__, "Got a canbus packet off the queue. dataLen=%d", rxPacket.dataLen);
+//      g_mbctl->hexdumpCanBusPacket(rxPacket);
+
+      MastervoltMessage* mvMessage=mvParser.parseStdCanbusId(rxPacket.stdCanbusId, rxPacket.extCanbusId, std::string((char*) rxPacket.data, rxPacket.dataLen));
+      if(NULL==mvMessage){
+        continue;
+      }
+
+      ESP_LOGI(TAG, "Parsed a mastervolt message %s", mvMessage->toString().c_str());
+      if(MastervoltMessage::MastervoltMessageType::FLOAT == mvMessage->type) {
+        MastervoltMessageFloat* msgFloat=(MastervoltMessageFloat*) mvMessage;
+        sprintf(topic, MQTT_TOPIC_FORMAT, msgFloat->deviceUniqueId, msgFloat->attributeId);
         sprintf(valueStr, "%f", msgFloat->floatValue);
         publishToMQTT(topic, valueStr);
       }
-      delete mvMessage;
-#else
-      std::string payloadStr=rxPacket.getData();
-
-//      printBytesSuitableForWiresharkImport((uint8_t*)&rxPacket.canId, payloadStr);
-//      mqttPublishHexValue("masterbus/latest", payloadStr);
-#if 1
-      MastervoltVariant variant;
-      parseVariant(rxPacket.canId, payloadStr, variant);
-      if(variant.isRequest){
-        continue;
-      }
-      if(variant.isFloat()){
-        sprintf(topic, "masterbus/%03X/%04X", variant.deviceId, variant.attributeId);
-        sprintf(valueStr, "%f", variant.asFloat());
-        printf("%s %s\n", topic, valueStr);
+      else if(MastervoltMessage::MastervoltMessageType::DATE == mvMessage->type) {
+        MastervoltMessageDate* msgDate=(MastervoltMessageDate*) mvMessage;
+        sprintf(topic, MQTT_TOPIC_FORMAT, msgDate->deviceUniqueId, msgDate->attributeId);
+        sprintf(valueStr, "%02d/%02d/%d", msgDate->day, msgDate->month, msgDate->year);
         publishToMQTT(topic, valueStr);
+        //TODO Set the device's local time from this
       }
-#endif
-#endif
+      else if(MastervoltMessage::MastervoltMessageType::TIME == mvMessage->type) {
+        MastervoltMessageTime* msgTime=(MastervoltMessageTime*) mvMessage;
+        sprintf(topic, MQTT_TOPIC_FORMAT, msgTime->deviceUniqueId, msgTime->attributeId);
+        sprintf(valueStr, "%02d:%02d:%02d", msgTime->hour, msgTime->minute, msgTime->second);
+        publishToMQTT(topic, valueStr);
+        //TODO Set the device's local time from this
+      }
+      delete mvMessage;
     }
   }
   //  g_mbctl->stopCANBusPump();
 }
 
 void startTaskForwardCMasterBusPacketsToMQTT(){
+//  xTaskCreatePinnedToCore(taskForwardCMasterBusPacketsToMQTT, "taskForwardCMasterBusPacketsToMQTT", 2048, this, 5, &taskForwardCMasterBusPacketsToMQTTHandle, 0);
 }
 
 void configureMasterbus() {
