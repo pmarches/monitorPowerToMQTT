@@ -20,90 +20,14 @@ char* bytesToHex(uint8_t* bytes, int bytesLen);
 
 SPIBus spi(MYCANCTL_BUS);
 void initializeMasterbus(){
-  ESP_LOGD(TAG, "Begin");
-
-  gpio_reset_pin(SPI_CS_PIN);
-  gpio_set_direction(SPI_CS_PIN, GPIO_MODE_OUTPUT);
-  gpio_set_intr_type(SPI_CS_PIN, GPIO_INTR_DISABLE);
-  gpio_set_level(SPI_CS_PIN, 1);
-
-  configurePinAsOutput(SPI_CLK_PIN);
-  configurePinAsOutput(SPI_MASTER_OUT_SLAVE_IN_PIN);
-  gpio_set_direction(SPI_MASTER_IN_SLAVE_OUT_PIN, GPIO_MODE_INPUT);
-  gpio_set_direction(SPI_INT_PIN, GPIO_MODE_INPUT);
-
   ESP_LOGD(TAG, "init: mosi=%d, miso=%d, clk=%d, cs=%d", SPI_MASTER_OUT_SLAVE_IN_PIN, SPI_MASTER_IN_SLAVE_OUT_PIN, SPI_CLK_PIN, SPI_CS_PIN);
-#if 1
-  spi.init(SPI_MASTER_OUT_SLAVE_IN_PIN, SPI_MASTER_IN_SLAVE_OUT_PIN, SPI_CLK_PIN);
-  SPIDevice* spiRx=new SPIDevice(&spi, SPI_CS_PIN);
-  ESP_ERROR_CHECK(spiRx->init());
-  MCP2515Class* mcp2515Rx=new MCP2515Class(spiRx, SPI_CS_PIN, SPI_INT_PIN, 8E6);
+
+  ESP_ERROR_CHECK(spi.init(SPI_MASTER_OUT_SLAVE_IN_PIN, SPI_MASTER_IN_SLAVE_OUT_PIN, SPI_CLK_PIN, SPI_CS_PIN));
+  SPIDevice* spiDevice=new SPIDevice(&spi, SPI_CS_PIN);
+  ESP_ERROR_CHECK(spiDevice->init());
+  MCP2515Class* mcp2515Rx=new MCP2515Class(spiDevice, SPI_CS_PIN, SPI_INT_PIN, 8E6);
   g_mbctl=new MasterbusController(mcp2515Rx);
-#if 0
-  while(true){
-    if(g_mbctl->configure(MCP2515Class::NORMAL_MODE)==ESP_OK){
-      break;
-    }
-    ESP_LOGW(TAG, "Failed  to configure MCP2515, retrying");
-  }
-#else
   ESP_ERROR_CHECK(g_mbctl->configure(MCP2515Class::NORMAL_MODE));
-#endif
-  ESP_LOGI(TAG, "MCP2515 configured successfully");
-#else
-  esp_err_t errRc;
-  gpio_num_t csPin=SPI_CS_PIN;
-  spi_host_device_t   m_host=MYCANCTL_BUS;
-#if 1
-  gpio_num_t mosiPin=SPI_MASTER_OUT_SLAVE_IN_PIN;
-  gpio_num_t misoPin=SPI_MASTER_IN_SLAVE_OUT_PIN;
-  gpio_num_t clkPin=SPI_CLK_PIN;
-
-  ESP_LOGD(TAG, "init: mosi=%d, miso=%d, clk=%d, cs=%d", mosiPin, misoPin, clkPin, csPin);
-  ESP_LOGI(TAG, "... Initializing bus; host=%d", m_host);
-
-  spi_bus_config_t bus_config = {
-    .mosi_io_num     = mosiPin, // MOSI
-    .miso_io_num     = misoPin, // MISO
-    .sclk_io_num     = clkPin,  // CLK
-    .quadwp_io_num   = -1,      // Not used
-    .quadhd_io_num   = -1,      // Not used
-    .max_transfer_sz = 0,       // 0 means use default.
-    .flags           = (SPICOMMON_BUSFLAG_MASTER | SPICOMMON_BUSFLAG_SCLK | SPICOMMON_BUSFLAG_MOSI | SPICOMMON_BUSFLAG_MISO),
-    .intr_flags =0,
-  };
-
-  errRc = ::spi_bus_initialize(m_host, &bus_config, 1 /*DMA Channel*/);
-  if (errRc != ESP_OK) {
-    ESP_LOGE(TAG, "spi_bus_initialize(): rc=%d", errRc);
-    abort();
-  }
-  return;
-#endif
-
-  spi_device_handle_t m_handle;
-  spi_device_interface_config_t dev_config;
-  dev_config.address_bits     = 0;
-  dev_config.command_bits     = 0;
-  dev_config.dummy_bits       = 0;
-  dev_config.mode             = 0;
-  dev_config.duty_cycle_pos   = 0;
-  dev_config.cs_ena_posttrans = 0;
-  dev_config.cs_ena_pretrans  = 0;
-  dev_config.clock_speed_hz   = 100000;
-  dev_config.spics_io_num     = csPin;
-  dev_config.flags            = SPI_DEVICE_NO_DUMMY;
-  dev_config.queue_size       = 1;
-  dev_config.pre_cb           = NULL;
-  dev_config.post_cb          = NULL;
-  ESP_LOGI(TAG, "... Adding device bus.");
-  errRc = ::spi_bus_add_device(m_host, &dev_config, &m_handle);
-  if (errRc != ESP_OK) {
-    ESP_LOGE(TAG, "spi_bus_add_device(): rc=%d", errRc);
-    abort();
-  }
-
-#endif
 
   ESP_LOGD(TAG, "End");
 }
