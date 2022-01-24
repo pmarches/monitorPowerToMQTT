@@ -120,13 +120,6 @@ void gapClientCallback(esp_gap_ble_cb_event_t event, esp_ble_gap_cb_param_t *par
       uint8_t VICTRON_ENERGY_MANUFACTURER[]={0xE1, 0x02};
       if(manufacturer_data_len>2 && memcmp(manufacturer_data, VICTRON_ENERGY_MANUFACTURER, 2)==0){
         processVEAdvertisement(scan_result->scan_rst.bda, manufacturer_data, manufacturer_data_len);
-//        bool is440WattController=memcmp(scan_result->scan_rst.bda, ADDRESS_440_WATT, sizeof(esp_bd_addr_t))==0;
-//        if (appState!=VEBT_DO_CONNECT && is440WattController) {
-//          appState=VEBT_DO_CONNECT;
-          //          ESP_LOGD(__FUNCTION__, "connect to the remote device.");
-          //          esp_ble_gap_stop_scanning();
-          //          ESP_ERROR_CHECK(esp_ble_gattc_open(gl_profile_tab[PROFILE_A_APP_ID].gattc_if, scan_result->scan_rst.bda, scan_result->scan_rst.ble_addr_type, true));
-//        }
       }
     }
     else if(ESP_GAP_SEARCH_INQ_CMPL_EVT==scan_result->scan_rst.search_evt) {

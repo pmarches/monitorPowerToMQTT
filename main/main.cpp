@@ -43,7 +43,7 @@ extern "C" void app_main(void) {
   configureMQTT();
 
   uploadCoreDumpFromFlashIntoMQTTTopic();
-#if 0
+#if 1
   configureBLENetworking();
   configureVeNetworking();
 #endif

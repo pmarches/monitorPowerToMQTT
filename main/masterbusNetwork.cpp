@@ -70,11 +70,10 @@ void mqttPublishHexValue(const char* topic, std::string& payloadBytes){
   free(hexBytes);
 }
 
-#define MQTT_TOPIC_FORMAT "masterbus/0x%02X/0x%02X"
 void taskForwardCMasterBusPacketsToMQTT(){
   MvParser mvParser;
-  char topic[256];
-  char valueStr[256];
+  char topic[128];
+  char valueStr[128];
 
   g_mbctl->startCANBusPump();
   while(true){
@@ -89,23 +88,18 @@ void taskForwardCMasterBusPacketsToMQTT(){
       }
 
       ESP_LOGI(TAG, "Parsed a mastervolt message %s", mvMessage->toString().c_str());
+      sprintf(topic, "masterbus/0x%02X/0x%02X", mvMessage->deviceUniqueId, mvMessage->attributeId);
       if(MastervoltMessage::MastervoltMessageType::FLOAT == mvMessage->type) {
-        MastervoltMessageFloat* msgFloat=(MastervoltMessageFloat*) mvMessage;
-        sprintf(topic, MQTT_TOPIC_FORMAT, msgFloat->deviceUniqueId, msgFloat->attributeId);
-        sprintf(valueStr, "%f", msgFloat->floatValue);
+        sprintf(valueStr, "%f", mvMessage->value.floatValue);
         publishToMQTT(topic, valueStr);
       }
       else if(MastervoltMessage::MastervoltMessageType::DATE == mvMessage->type) {
-        MastervoltMessageDate* msgDate=(MastervoltMessageDate*) mvMessage;
-        sprintf(topic, MQTT_TOPIC_FORMAT, msgDate->deviceUniqueId, msgDate->attributeId);
-        sprintf(valueStr, "%02d/%02d/%d", msgDate->day, msgDate->month, msgDate->year);
+        sprintf(valueStr, "%02d/%02d/%d", mvMessage->value.day, mvMessage->value.month, mvMessage->value.year);
         publishToMQTT(topic, valueStr);
         //TODO Set the device's local time from this
       }
       else if(MastervoltMessage::MastervoltMessageType::TIME == mvMessage->type) {
-        MastervoltMessageTime* msgTime=(MastervoltMessageTime*) mvMessage;
-        sprintf(topic, MQTT_TOPIC_FORMAT, msgTime->deviceUniqueId, msgTime->attributeId);
-        sprintf(valueStr, "%02d:%02d:%02d", msgTime->hour, msgTime->minute, msgTime->second);
+        sprintf(valueStr, "%02d:%02d:%02d", mvMessage->value.hour, mvMessage->value.minute, mvMessage->value.second);
         publishToMQTT(topic, valueStr);
         //TODO Set the device's local time from this
       }
