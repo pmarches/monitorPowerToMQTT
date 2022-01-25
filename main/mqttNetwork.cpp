@@ -16,12 +16,12 @@ esp_err_t mqtt_event_handler(esp_mqtt_event_handle_t event) {
   }
 
   if (MQTT_EVENT_CONNECTED == event->event_id) {
-    ESP_LOGI(__FILE__, "MQTT Connected\n");
+    ESP_LOGI(__FILE__, "MQTT Connected");
 //    xEventGroupSetBits(inkplateStateEG, MQTT_CONNECTED_BIT);
     isMqttConnected=true;
   }
   else if (MQTT_EVENT_DISCONNECTED == event->event_id) {
-    ESP_LOGE(__FILE__, "MQTT Disconnected\n");
+    ESP_LOGE(__FILE__, "MQTT Disconnected");
 //    xEventGroupClearBits(inkplateStateEG, MQTT_CONNECTED_BIT);
     isMqttConnected=false;
   }

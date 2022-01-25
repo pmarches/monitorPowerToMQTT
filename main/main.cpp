@@ -28,8 +28,27 @@ void configureFlash(){
   ESP_ERROR_CHECK( ret );
 }
 
+void printHeapMemoryStats(void* args){
+//  esp_get_free_heap_size();
+  heap_caps_print_heap_info(MALLOC_CAP_8BIT);
+}
+
+void startHeapMonitorTimer(){
+//  ESP_ERROR_CHECK(esp_timer_init());
+  esp_timer_create_args_t timerArgs={
+      .callback=printHeapMemoryStats,
+      .arg=NULL,
+      .dispatch_method=ESP_TIMER_TASK,
+      .name="head monitor timer",
+      .skip_unhandled_events= true
+  };
+  esp_timer_handle_t timerHandle;
+  ESP_ERROR_CHECK(esp_timer_create(&timerArgs, &timerHandle));
+  ESP_ERROR_CHECK(esp_timer_start_periodic(timerHandle, 1000000));
+}
 
 extern "C" void app_main(void) {
+  startHeapMonitorTimer();
 #if 1
   esp_log_level_set("*", ESP_LOG_WARN);
 //  esp_log_level_set("../main/masterbusNetwork.cpp", ESP_LOG_DEBUG);
@@ -48,8 +67,9 @@ extern "C" void app_main(void) {
   configureVeNetworking();
 #endif
 
+#if 1
   configureMasterbus();
 //  startTaskForwardCMasterBusPacketsToMQTT();
   taskForwardCMasterBusPacketsToMQTT();
-  configureMqttAugmentation();
+#endif
 }

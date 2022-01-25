@@ -76,13 +76,14 @@ void taskForwardCMasterBusPacketsToMQTT(){
   char valueStr[128];
 
   g_mbctl->startCANBusPump();
+  CANBusPacket rxPacket;
   while(true){
-    CANBusPacket rxPacket;
     if(xQueueReceive(g_mbctl->pumpQueue, &rxPacket, portMAX_DELAY)){
 //      ESP_LOGD(__FUNCTION__, "Got a canbus packet off the queue. dataLen=%d", rxPacket.dataLen);
 //      g_mbctl->hexdumpCanBusPacket(rxPacket);
 
-      MastervoltMessage* mvMessage=mvParser.parseStdCanbusId(rxPacket.stdCanbusId, rxPacket.extCanbusId, std::string((char*) rxPacket.data, rxPacket.dataLen));
+      std::string payload((char*) rxPacket.data, rxPacket.dataLen);
+      MastervoltMessage* mvMessage=mvParser.parseStdCanbusId(rxPacket.stdCanbusId, rxPacket.extCanbusId, payload);
       if(NULL==mvMessage){
         continue;
       }

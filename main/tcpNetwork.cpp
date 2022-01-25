@@ -42,12 +42,14 @@ esp_err_t wifi_event_handler(void *ctx, system_event_t *event) {
 static void event_handler(void* arg, esp_event_base_t event_base, int32_t event_id, void* event_data)
 {
     if (event_base == WIFI_EVENT && event_id == WIFI_EVENT_STA_START) {
-        esp_wifi_connect();
+      ESP_LOGW(__FUNCTION__, "Wifi started");
+      esp_wifi_connect();
     } else if (event_base == WIFI_EVENT && event_id == WIFI_EVENT_STA_DISCONNECTED) {
-        esp_wifi_connect();
+      ESP_LOGW(__FUNCTION__, "We got disconnected from the WiFi. Trying to re-connect...");
+      esp_wifi_connect();
     } else if (event_base == IP_EVENT && event_id == IP_EVENT_STA_GOT_IP) {
-        ip_event_got_ip_t* event = (ip_event_got_ip_t*) event_data;
-        ESP_LOGI(__FUNCTION__,"got ip:" IPSTR, IP2STR(&event->ip_info.ip));
+      ip_event_got_ip_t* event = (ip_event_got_ip_t*) event_data;
+      ESP_LOGI(__FUNCTION__,"got ip:" IPSTR, IP2STR(&event->ip_info.ip));
     }
 }
 #endif
