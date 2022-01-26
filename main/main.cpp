@@ -5,11 +5,13 @@
 #include "esp_system.h"
 #include "esp_event.h"
 #include <esp_log.h>
+#include <mqtt_client.h>
+#include <esp_gap_ble_api.h>
 
 #include <cstring>
 
 void configureWifiNetworking();
-void configureMQTT();
+void configureMQTT(mqtt_event_callback_t);
 void configureBLENetworking();
 void configureVeNetworking();
 void configureMasterbus();
@@ -17,6 +19,23 @@ void startTaskForwardCMasterBusPacketsToMQTT();
 void taskForwardCMasterBusPacketsToMQTT();
 void configureMqttAugmentation();
 void uploadCoreDumpFromFlashIntoMQTTTopic();
+
+esp_err_t mqtt_event_handler(esp_mqtt_event_handle_t event) {
+  ESP_LOGD(__FILE__, "mqtt_event_handler called");
+  if (NULL == event) {
+    return 0;
+  }
+
+  if (MQTT_EVENT_CONNECTED == event->event_id) {
+    ESP_LOGI(__FILE__, "MQTT Connected, starting BLE scanning");
+    ESP_ERROR_CHECK_WITHOUT_ABORT(esp_ble_gap_start_scanning(0xffffffff));
+  }
+  else if (MQTT_EVENT_DISCONNECTED == event->event_id) {
+    ESP_LOGE(__FILE__, "MQTT Disconnected");
+  }
+
+  return 0;
+}
 
 void configureFlash(){
   esp_err_t ret=ESP_OK;
@@ -59,7 +78,7 @@ extern "C" void app_main(void) {
 
   configureFlash();
   configureWifiNetworking();
-  configureMQTT();
+  configureMQTT(mqtt_event_handler);
 
   uploadCoreDumpFromFlashIntoMQTTTopic();
 #if 1

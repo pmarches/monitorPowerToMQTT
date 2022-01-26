@@ -33,6 +33,7 @@ void gapClientCallback(esp_gap_ble_cb_event_t event, esp_ble_gap_cb_param_t *par
 #endif
   }
   else if(ESP_GAP_BLE_SCAN_PARAM_SET_COMPLETE_EVT==event) {
+    ESP_LOGE(__FUNCTION__, "ESP_GAP_BLE_SCAN_PARAM_SET_COMPLETE_EVT: BLE Scanning stopped. This could be because the Wifi was disconnected???");
     //    if(appState==VEBT_DO_SCAN){
     //      //the unit of the duration is second
     //      uint32_t duration = 30;
@@ -159,7 +160,6 @@ void configureBLEScan(){
   if (scan_ret){
       ESP_LOGE(__FUNCTION__, "set scan params error, error code = %x", scan_ret);
   }
-  esp_ble_gap_start_scanning(0xffffffff);
 }
 
 void configureBLENetworking(){

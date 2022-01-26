@@ -24,6 +24,7 @@ TODO
 - Add support for mDNS lookup of the MQTT broker
 - Augment the MPPT data with stats such as max yield, min/max battery voltage
 - Make the values more human readable instead of the basic registers? Maybe put the registers in one topic, and the human readable in other topics?
+- The device disconnects from the Wifi and has a hard time re-connecting.
 
 Data augmentation
 ==
