@@ -33,7 +33,6 @@ void initializeMasterbus(){
 }
 
 void printBytesSuitableForWiresharkImport(uint8_t* canId, std::string& canFrame){
-  const int NB_BYTES_PER_LINE=16;
 #if 1
   printf("%06X", 0);
   printf(" %02X %02X %02X %02X", canId[0], canId[1], canId[2], canId[3]);
@@ -70,7 +69,7 @@ void mqttPublishHexValue(const char* topic, std::string& payloadBytes){
   free(hexBytes);
 }
 
-void taskForwardCMasterBusPacketsToMQTT(){
+void taskForwardMasterBusPacketsToMQTT(){
   MvParser mvParser;
   char topic[128];
   char valueStr[128];

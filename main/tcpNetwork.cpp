@@ -4,17 +4,20 @@
 
 #include <cstring>
 
+//#define TAG __FUNCTION__
+#define TAG __FILE__
+
 static void wifi_event_handler(void* arg, esp_event_base_t event_base, int32_t event_id, void* event_data)
 {
     if (event_base == WIFI_EVENT && event_id == WIFI_EVENT_STA_START) {
-      ESP_LOGW(__FUNCTION__, "Wifi started, trying to connect to AP");
+      ESP_LOGW(TAG, "Wifi started, trying to connect to AP");
       ESP_ERROR_CHECK_WITHOUT_ABORT(esp_wifi_connect());
     } else if (event_base == WIFI_EVENT && event_id == WIFI_EVENT_STA_DISCONNECTED) {
-      ESP_LOGW(__FUNCTION__, "We got disconnected from the WiFi. Trying to re-connect...");
+      ESP_LOGW(TAG, "We got disconnected from the WiFi. Trying to re-connect...");
       ESP_ERROR_CHECK_WITHOUT_ABORT(esp_wifi_connect());
     } else if (event_base == IP_EVENT && event_id == IP_EVENT_STA_GOT_IP) {
       ip_event_got_ip_t* event = (ip_event_got_ip_t*) event_data;
-      ESP_LOGI(__FUNCTION__,"got ip:" IPSTR, IP2STR(&event->ip_info.ip));
+      ESP_LOGI(TAG,"got ip:" IPSTR, IP2STR(&event->ip_info.ip));
     }
 }
 
@@ -27,8 +30,8 @@ int8_t getAccessPointRSSI(){
   return 0;
 }
 
-void configureWifiNetworking() {
-  ESP_LOGD(__FUNCTION__, "Begin");
+void configureWifiNetworking(esp_event_handler_t appWifiEventHandler) {
+  ESP_LOGD(TAG, "Begin");
   ESP_ERROR_CHECK(esp_netif_init());
   ESP_ERROR_CHECK(esp_event_loop_create_default());
 
@@ -37,6 +40,7 @@ void configureWifiNetworking() {
 
   ESP_ERROR_CHECK(esp_event_handler_instance_register(WIFI_EVENT, ESP_EVENT_ANY_ID, &wifi_event_handler, NULL, NULL));
   ESP_ERROR_CHECK(esp_event_handler_instance_register(IP_EVENT, IP_EVENT_STA_GOT_IP, &wifi_event_handler, NULL, NULL));
+  ESP_ERROR_CHECK(esp_event_handler_instance_register(IP_EVENT, IP_EVENT_STA_GOT_IP, appWifiEventHandler, NULL, NULL));
 
   // Initialize default station as network interface instance (esp-netif)
   esp_netif_t *sta_netif = esp_netif_create_default_wifi_sta();

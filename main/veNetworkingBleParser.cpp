@@ -6,6 +6,9 @@
 #include <string.h>
 #include <cstring>
 
+//#define TAG __FUNCTION__
+#define TAG __FILE__
+
 //stringUtils.cpp
 char* bytesToHex(uint8_t* bytes, int bytesLen);
 size_t hexToBytes(const char* hexString, uint8_t* resultByteArr, size_t resultByteArrSize);
@@ -34,14 +37,14 @@ void publishToMQTT(const char* topic, const char* value);
 
 void configureVeNetworking(){
   hexToBytes(CONFIG_MPTM_VE_NETWORKING_NETWORK_ID, g_networkId, 2);
-  ESP_LOGI(__FUNCTION__, "g_networkId %02X%02X", g_networkId[0], g_networkId[1]);
+  ESP_LOGI(TAG, "g_networkId %02X%02X", g_networkId[0], g_networkId[1]);
 
   memset(g_deviceOverflowCounter, 0, sizeof(g_deviceOverflowCounter));
 
   uint8_t keyBytes[16];
   hexToBytes(CONFIG_MPTM_VE_NETWORKING_KEY, keyBytes, 16);
   char* hexKey=bytesToHex(keyBytes, 16);
-  ESP_LOGI(__FUNCTION__, "hexKey=%s", hexKey);
+  ESP_LOGI(TAG, "hexKey=%s", hexKey);
   free(hexKey);
   mbedtls_aes_init(&aesCtx);
   mbedtls_aes_setkey_dec(&aesCtx, keyBytes, 128);
@@ -93,7 +96,7 @@ void parseCleartextVeNetworkingBytes(uint8_t* macAddress, uint8_t* serialBytes, 
         sprintf(valueStr, "%u", *intPtr);
       }
       else {
-        ESP_LOGE(__FUNCTION__, "Unhandeled nbBytes=%d", *nbBytesForValue);
+        ESP_LOGE(TAG, "Unhandeled nbBytes=%d", *nbBytesForValue);
         i+=*nbBytesForValue;
         continue;
       }
@@ -128,7 +131,7 @@ struct DeviceOverflowRecord* findOverflowDeviceCounterFromSerial(uint8_t* serial
 }
 
 void recordOverflowCounterForSerial(uint8_t* serial, uint8_t* overflowCounter){
-  ESP_LOGD(__FUNCTION__, "serial=%02X%02X%02X%02X overflowCounter=%02X%02X",
+  ESP_LOGD(TAG, "serial=%02X%02X%02X%02X overflowCounter=%02X%02X",
       serial[0], serial[1], serial[2], serial[3],
       overflowCounter[0], overflowCounter[1]);
   struct DeviceOverflowRecord* counterRecord=findOverflowDeviceCounterFromSerial(serial);
@@ -150,11 +153,16 @@ struct VeNetworkingMessageHeader {
 
 void computeCipherIVFromFields(uint8_t* ivBytesDestination, uint8_t opKind, uint8_t* sequence, uint8_t* overflowCounter, uint8_t* serial, const uint8_t* networkId){
   uint8_t* ivBytes=ivBytesDestination;
-  ESP_LOGD(__FUNCTION__, "opKind=%d", opKind);
-  ESP_LOG_BUFFER_HEX_LEVEL("sequence ", sequence, VE_NETWORKING_SEQUENCE_BYTE_LEN, ESP_LOG_DEBUG);
-  ESP_LOG_BUFFER_HEX_LEVEL("overflowCounter ", overflowCounter, VE_NETWORKING_OVERFLOW_BYTE_LEN, ESP_LOG_DEBUG);
-  ESP_LOG_BUFFER_HEX_LEVEL("serial ", serial, VE_NETWORKING_SERIAL_BYTE_LEN, ESP_LOG_DEBUG);
-  ESP_LOG_BUFFER_HEX_LEVEL("networkId ", networkId, 2, ESP_LOG_DEBUG);
+  ESP_LOGD(TAG, "opKind=%d", opKind);
+
+  ESP_LOGD(TAG, "sequence ");
+  ESP_LOG_BUFFER_HEX_LEVEL(TAG, sequence, VE_NETWORKING_SEQUENCE_BYTE_LEN, ESP_LOG_DEBUG);
+  ESP_LOGD(TAG, "overflowCounter ");
+  ESP_LOG_BUFFER_HEX_LEVEL(TAG, overflowCounter, VE_NETWORKING_OVERFLOW_BYTE_LEN, ESP_LOG_DEBUG);
+  ESP_LOGD(TAG, "serial ");
+  ESP_LOG_BUFFER_HEX_LEVEL(TAG, serial, VE_NETWORKING_SERIAL_BYTE_LEN, ESP_LOG_DEBUG);
+  ESP_LOGD(TAG, "networkId ");
+  ESP_LOG_BUFFER_HEX_LEVEL(TAG, networkId, 2, ESP_LOG_DEBUG);
   ivBytes[0]=opKind;
   ivBytes+=1;
   memcpy(ivBytes, sequence, VE_NETWORKING_SEQUENCE_BYTE_LEN);
@@ -165,7 +173,8 @@ void computeCipherIVFromFields(uint8_t* ivBytesDestination, uint8_t opKind, uint
   ivBytes+=VE_NETWORKING_SERIAL_BYTE_LEN;
   ivBytes[0]=networkId[0];
   ivBytes[1]=networkId[1];
-  ESP_LOG_BUFFER_HEX_LEVEL("resulting ivBytes ", ivBytesDestination, VE_NETWORKING_IV_BYTE_LEN, ESP_LOG_DEBUG);
+  ESP_LOGD(TAG, "resulting ivBytes ");
+  ESP_LOG_BUFFER_HEX_LEVEL(TAG, ivBytesDestination, VE_NETWORKING_IV_BYTE_LEN, ESP_LOG_DEBUG);
 }
 
 void computeXOROn2ByteArrays(uint8_t* destination, uint8_t* src1, uint8_t* src2, int nbBytes){
@@ -213,7 +222,8 @@ bool aesCCMDecrypt(uint8_t* ivBytes, uint8_t* cipherText, uint8_t cipherTextLen,
   authNonceB0.flags=computeFlags(VE_NETWORKING_TAG_BYTE_LEN, 2);
   authNonceB0.cipherTextLen[0]=0;
   authNonceB0.cipherTextLen[1]=cipherTextLen; //FIXME encode MSB first
-  ESP_LOG_BUFFER_HEX_LEVEL("authNonceB0/CBC IV in", &authNonceB0, 16, ESP_LOG_DEBUG);
+  ESP_LOGD(TAG, "authNonceB0/CBC IV in");
+  ESP_LOG_BUFFER_HEX_LEVEL(TAG, &authNonceB0, 16, ESP_LOG_DEBUG);
   uint8_t macValueT[16]; //AKA X_1
   mbedtls_internal_aes_encrypt(&aesCtx, (const unsigned char*) &authNonceB0, macValueT);
 //  ESP_LOG_BUFFER_HEX_LEVEL("macValueT (AKA X_1)/CBC IV out", macValueT, 16, ESP_LOG_DEBUG);
@@ -254,13 +264,17 @@ bool aesCCMDecrypt(uint8_t* ivBytes, uint8_t* cipherText, uint8_t cipherTextLen,
 
   bool isMessageDecryptedOk=memcmp(encryptedCcmTag, computedEncryptedTagU, VE_NETWORKING_TAG_BYTE_LEN)==0;
   if(isMessageDecryptedOk==false){
-    ESP_LOGE(__FUNCTION__, "Message failed to decrypt correctly");
+    ESP_LOGE(TAG, "Message failed to decrypt correctly");
 //    ESP_LOG_BUFFER_HEX_LEVEL("keyBytes ", keyBytes, 16, ESP_LOG_ERROR);
-    ESP_LOG_BUFFER_HEX_LEVEL("ivBytes ", ivBytes, VE_NETWORKING_IV_BYTE_LEN, ESP_LOG_ERROR);
-    ESP_LOGE(__FUNCTION__, "cipherTextLen=%d", cipherTextLen);
-    ESP_LOG_BUFFER_HEX_LEVEL("cipherText ", cipherText, cipherTextLen, ESP_LOG_ERROR);
-    ESP_LOG_BUFFER_HEX_LEVEL("encryptedCcmTag ", encryptedCcmTag, VE_NETWORKING_TAG_BYTE_LEN, ESP_LOG_ERROR);
-    ESP_LOG_BUFFER_HEX_LEVEL("clearText (should not be shown) ", clearText, cipherTextLen, ESP_LOG_ERROR);
+    ESP_LOGE(TAG, "ivBytes");
+    ESP_LOG_BUFFER_HEX_LEVEL(TAG, ivBytes, VE_NETWORKING_IV_BYTE_LEN, ESP_LOG_ERROR);
+    ESP_LOGE(TAG, "cipherTextLen=%d", cipherTextLen);
+    ESP_LOGE(TAG, "cipherText ");
+    ESP_LOG_BUFFER_HEX_LEVEL(TAG, cipherText, cipherTextLen, ESP_LOG_ERROR);
+    ESP_LOGE(TAG, "encryptedCcmTag ");
+    ESP_LOG_BUFFER_HEX_LEVEL(TAG, encryptedCcmTag, VE_NETWORKING_TAG_BYTE_LEN, ESP_LOG_ERROR);
+    ESP_LOGE(TAG, "clearText (should not be shown) ");
+    ESP_LOG_BUFFER_HEX_LEVEL(TAG, clearText, cipherTextLen, ESP_LOG_ERROR);
   }
   return isMessageDecryptedOk;
 }
@@ -268,11 +282,11 @@ bool aesCCMDecrypt(uint8_t* ivBytes, uint8_t* cipherText, uint8_t cipherTextLen,
 extern void parseCleartextVeNetworkingBytes(uint8_t* macAddress, uint8_t* serialBytes, uint8_t* clearText, uint8_t clearTextLen);
 
 void onVeNetworkingMsgReceived(uint8_t* macAddress, uint8_t* manufacturer_data, uint8_t manufacturer_data_len){
-  ESP_LOGD(__FUNCTION__, "Begin manufacturer_data_len=%d", manufacturer_data_len);
+  ESP_LOGD(TAG, "Begin manufacturer_data_len=%d", manufacturer_data_len);
   struct VeNetworkingMessageHeader* networkingMsg = (struct VeNetworkingMessageHeader*) (manufacturer_data+3);
   struct DeviceOverflowRecord* deviceRecord=findOverflowDeviceCounterFromSerial(networkingMsg->serial);
   if(deviceRecord==NULL) {
-    ESP_LOGW(__FUNCTION__, "No overflow record exist yet for serial %02X%02X. Ignoring this advertisement until we get an overflow record", networkingMsg->serial[0], networkingMsg->serial[1]);
+    ESP_LOGW(TAG, "No overflow record exist yet for serial %02X%02X. Ignoring this advertisement until we get an overflow record", networkingMsg->serial[0], networkingMsg->serial[1]);
     return;
   }
 
@@ -283,7 +297,7 @@ void onVeNetworkingMsgReceived(uint8_t* macAddress, uint8_t* manufacturer_data, 
   uint8_t cipherTextLen=ccmTag-cipherText;
   uint8_t* clearText=(uint8_t*)malloc(16); //FIXME
   if(aesCCMDecrypt(ivBytes, cipherText, cipherTextLen, ccmTag, clearText)==false){
-    ESP_LOGE(__FUNCTION__, "Decryption of networkingMessage failed");
+    ESP_LOGE(TAG, "Decryption of networkingMessage failed");
     return;
   }
   parseCleartextVeNetworkingBytes(macAddress, networkingMsg->serial, clearText, cipherTextLen);
@@ -295,10 +309,10 @@ bool isGroupIdPartOfOurNetwork(uint8_t groupId){
 }
 
 void onOverflowCounterReceived(uint8_t* macAddress, uint8_t* manufacturer_data, uint8_t manufacturer_data_len){
-//  ESP_LOGD(__FUNCTION__, "Begin manufacturer_data_len=%d", manufacturer_data_len);
+//  ESP_LOGD(TAG, "Begin manufacturer_data_len=%d", manufacturer_data_len);
   struct VeNetworkingMessageHeader* overflowMsg = (struct VeNetworkingMessageHeader*) (manufacturer_data+3);
   if(isGroupIdPartOfOurNetwork(overflowMsg->groupId)==false){
-    ESP_LOGW(__FUNCTION__, "Ignoring broadcast from foreign group %02X", overflowMsg->groupId);
+    ESP_LOGW(TAG, "Ignoring broadcast from foreign group %02X", overflowMsg->groupId);
     return;
   }
   uint8_t* overflowCounter=(uint8_t*) (overflowMsg+1);
@@ -310,7 +324,7 @@ void onOverflowCounterReceived(uint8_t* macAddress, uint8_t* manufacturer_data, 
     recordOverflowCounterForSerial(overflowMsg->serial, overflowCounter);
   }
   else{
-    ESP_LOGE(__FUNCTION__, "Decryption of overflow counter failed, this could be caused by out of network MPPTs with the same groupid as our network");
+    ESP_LOGE(TAG, "Decryption of overflow counter failed, this could be caused by out of network MPPTs with the same groupid as our network");
   }
 }
 
@@ -326,6 +340,6 @@ void processVEAdvertisement(uint8_t* macAddress, uint8_t* manufacturer_data, uin
     //Connection status update Not so interesting
   }
   else {
-    ESP_LOGW(__FUNCTION__, "Unknown opKind=%d", opKind);
+    ESP_LOGW(TAG, "Unknown opKind=%d", opKind);
   }
 }

@@ -8,14 +8,17 @@
 const int MQTT_CONNECTED_BIT = BIT1;
 esp_mqtt_client_handle_t mqttClient=0;
 
-void configureMQTT(mqtt_event_callback_t mqttEventHandle) {
+//#define TAG __FUNCTION__
+#define TAG __FILE__
+
+void startMQTTClient(mqtt_event_callback_t mqttEventHandle) {
   esp_mqtt_client_config_t mqtt_cfg;
   memset(&mqtt_cfg, 0, sizeof(esp_mqtt_client_config_t));
   mqtt_cfg.uri = CONFIG_MPTM_MQTT_BROKER_URI;
   mqtt_cfg.event_handle = mqttEventHandle;
   mqttClient = esp_mqtt_client_init(&mqtt_cfg);
   ESP_ERROR_CHECK(esp_mqtt_client_start(mqttClient));
-  ESP_LOGD(__FUNCTION__, "return");
+  ESP_LOGD(TAG, "startMQTTClient done");
 }
 
 #if 0
@@ -39,9 +42,9 @@ void resolve_mdns_host(const char *host_name) {
 #endif
 
 void publishToMQTT(const char* topic, const char* value){
-  ESP_LOGD(__FUNCTION__, "publish topic=%s value=%s", topic, value);
-  int qos=1;
-  int retain=0;
+  ESP_LOGD(TAG, "publish topic=%s value=%s", topic, value);
+  const int qos=1;
+  const int retain=0;
 #if 1
   //The sdkconfig is such that MQTT packets are dropped when not connected. No need to track if we are connected or not.
   esp_mqtt_client_publish(mqttClient, topic, value, 0, qos, retain);
