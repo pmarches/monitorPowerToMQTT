@@ -96,7 +96,9 @@ void startHeapMonitorTimer(){
 extern "C" void app_main(void) {
   monitorPowerEventGroup = xEventGroupCreate();
 //  startHeapMonitorTimer();
-#if 1
+#if 0
+  esp_log_level_set("*", ESP_LOG_WARNING);
+#else
   esp_log_level_set("*", ESP_LOG_DEBUG);
   esp_log_level_set("MQTT_CLIENT", ESP_LOG_INFO);
   esp_log_level_set("OUTBOX", ESP_LOG_INFO);

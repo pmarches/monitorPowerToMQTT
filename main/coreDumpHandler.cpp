@@ -101,6 +101,23 @@ typedef struct {
   uint32_t stackPointer;
 } taskCoreDump_t;
 
+const char* convertResetReasonToString(esp_reset_reason_t resetReason){
+  switch(resetReason){
+    case ESP_RST_UNKNOWN: return "ESP_RST_UNKNOWN";
+    case ESP_RST_POWERON: return "ESP_RST_POWERON";
+    case ESP_RST_EXT: return "ESP_RST_EXT";
+    case ESP_RST_SW: return "ESP_RST_SW";
+    case ESP_RST_PANIC: return "ESP_RST_PANIC";
+    case ESP_RST_INT_WDT: return "ESP_RST_INT_WDT";
+    case ESP_RST_TASK_WDT: return "ESP_RST_TASK_WDT";
+    case ESP_RST_WDT: return "ESP_RST_WDT";
+    case ESP_RST_DEEPSLEEP: return "ESP_RST_DEEPSLEEP";
+    case ESP_RST_BROWNOUT: return "ESP_RST_BROWNOUT";
+    case ESP_RST_SDIO: return "ESP_RST_SDIO";
+    default : return "Unkown unkown";
+  }
+}
+
 void uploadAppInfoToMQTT(){
   const char* topicFormat="%s/appinfo/%s";
   const int retain=1;
@@ -121,6 +138,9 @@ void uploadAppInfoToMQTT(){
 
   sprintf(topic, topicFormat, appDesc->project_name, "compileDate");
   esp_mqtt_client_publish(mqttClient, topic, appDesc->date, 0, qos, retain);
+
+  sprintf(topic, topicFormat, appDesc->project_name, "resetReason");
+  esp_mqtt_client_publish(mqttClient, topic, convertResetReasonToString(esp_reset_reason()), 0, qos, retain);
 
 //  coreDumpReport->has_applicationelfsha256=true;
 //  coreDumpReport->applicationelfsha256.len=32;
