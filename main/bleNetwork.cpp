@@ -35,13 +35,12 @@ void gapClientCallback(esp_gap_ble_cb_event_t event, esp_ble_gap_cb_param_t *par
     }
 #endif
   }
+  else if(ESP_GAP_BLE_SCAN_STOP_COMPLETE_EVT==event) {
+    ESP_LOGI(TAG, "ESP_GAP_BLE_SCAN_STOP_COMPLETE_EVT");
+    ESP_ERROR_CHECK_WITHOUT_ABORT(esp_ble_gap_start_scanning(0xffffffff));
+  }
   else if(ESP_GAP_BLE_SCAN_PARAM_SET_COMPLETE_EVT==event) {
     ESP_LOGE(TAG, "ESP_GAP_BLE_SCAN_PARAM_SET_COMPLETE_EV");
-    //    if(appState==VEBT_DO_SCAN){
-    //      //the unit of the duration is second
-    //      uint32_t duration = 30;
-    //      esp_ble_gap_start_scanning(duration);
-    //    }
   }
   else if(ESP_GAP_BLE_SCAN_START_COMPLETE_EVT==event) {
     //scan start complete event to indicate scan start successfully or failed

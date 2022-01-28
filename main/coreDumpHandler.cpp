@@ -114,7 +114,7 @@ const char* convertResetReasonToString(esp_reset_reason_t resetReason){
     case ESP_RST_DEEPSLEEP: return "ESP_RST_DEEPSLEEP";
     case ESP_RST_BROWNOUT: return "ESP_RST_BROWNOUT";
     case ESP_RST_SDIO: return "ESP_RST_SDIO";
-    default : return "Unkown unkown";
+    default : return "Unkown reset reason";
   }
 }
 

@@ -22,6 +22,8 @@ void configureMqttAugmentation();
 
 void uploadAppInfoToMQTT();
 void uploadCoreDumpFromFlashIntoMQTTTopic();
+void subscribeToAppUpdatesOverMQTT();
+void onAppUpdateNotification(esp_mqtt_event_handle_t event);
 
 static EventGroupHandle_t monitorPowerEventGroup;
 const int WIFI_CONNECTED_BIT = BIT0;
@@ -54,6 +56,10 @@ esp_err_t mqtt_event_handler(esp_mqtt_event_handle_t event) {
   else if (MQTT_EVENT_DISCONNECTED == event->event_id) {
     ESP_LOGE(__FILE__, "MQTT Disconnected");
     xEventGroupClearBits(monitorPowerEventGroup, MQTT_CONNECTED_BIT);
+  }
+  else if(MQTT_EVENT_DATA== event->event_id) {
+    ESP_LOGE(__FILE__, "MQTT data update for topic %s", event->topic);
+    onAppUpdateNotification(event);
   }
 
   return 0;
@@ -126,7 +132,7 @@ extern "C" void app_main(void) {
   uploadAppInfoToMQTT();
 //  uploadCoreDumpFromFlashIntoMQTTTopic(); //Out of memory?
 
-  //subscribeToAppUpdatesOverMQTT();
+  subscribeToAppUpdatesOverMQTT();
 #if 1
 //  startTaskForwardMasterBusPacketsToMQTT();
   taskForwardMasterBusPacketsToMQTT();
