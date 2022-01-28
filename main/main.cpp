@@ -108,7 +108,7 @@ extern "C" void app_main(void) {
   esp_log_level_set("*", ESP_LOG_DEBUG);
   esp_log_level_set("MQTT_CLIENT", ESP_LOG_INFO);
   esp_log_level_set("OUTBOX", ESP_LOG_INFO);
-  esp_log_level_set("esp_netif_lwip", ESP_LOG_INFO);
+//  esp_log_level_set("esp_netif_lwip", ESP_LOG_INFO);
 
 //  esp_log_level_set("./main/masterbusNetwork.cpp", ESP_LOG_INFO);
 //  esp_log_level_set("./main/MCP2515.cpp", ESP_LOG_INFO);
@@ -116,7 +116,7 @@ extern "C" void app_main(void) {
 
   esp_log_level_set("./main/veNetworkingBleParser.cpp", ESP_LOG_INFO);
   esp_log_level_set("./main/bleNetwork.cpp", ESP_LOG_INFO);
-  esp_log_level_set("./main/mqttNetwork.cpp", ESP_LOG_DEBUG);
+//  esp_log_level_set("./main/mqttNetwork.cpp", ESP_LOG_DEBUG);
 #endif
 
   configureFlash();

@@ -49,11 +49,11 @@ void configureWifiNetworking(esp_event_handler_t appWifiEventHandler) {
   // Initialize and start WiFi
   wifi_config_t wifi_config;
   memset(&wifi_config, 0, sizeof(wifi_config));
-
   strcpy((char*)wifi_config.sta.ssid, CONFIG_MPTM_WIFI_SSID);
   strcpy((char*)wifi_config.sta.password, CONFIG_MPTM_WIFI_PASSWORD);
+  wifi_config.sta.scan_method=WIFI_FAST_SCAN;
   wifi_config.sta.threshold.authmode=WIFI_AUTH_WPA2_PSK;
-  wifi_config.sta.listen_interval = 3;
+  wifi_config.sta.listen_interval = 3; //Only applies when WIFI_PS_MAX_MODEM is enabled
 
   ESP_ERROR_CHECK(esp_wifi_set_mode(WIFI_MODE_STA));
   ESP_ERROR_CHECK(esp_wifi_set_config(WIFI_IF_STA, &wifi_config));
