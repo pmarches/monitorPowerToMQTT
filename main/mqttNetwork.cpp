@@ -42,7 +42,6 @@ void sendOurStatusToMQTT(){
 }
 
 void onMQTTUpdate(esp_mqtt_event_handle_t event){
-//  ESP_LOGD(__FILE__, "MQTT data update for topic %s", mqttEvent->topic);
   if(ota_update_event_id==event->event_id) {
     onOTAPacketReceived(event->current_data_offset, (uint8_t*) event->data, event->data_len, event->total_data_len);
 

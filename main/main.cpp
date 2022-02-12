@@ -1,10 +1,11 @@
-#include "freertos/FreeRTOS.h"
+#include <freertos/FreeRTOS.h>
 #include <freertos/task.h>
-#include "freertos/event_groups.h"
+#include <freertos/event_groups.h>
 
 #include <nvs_flash.h>
-#include "esp_system.h"
-#include "esp_event.h"
+#include <esp_system.h>
+#include <esp_event.h>
+#include <esp_ota_ops.h>
 #include <esp_log.h>
 #include <mqtt_client.h>
 #include <esp_gap_ble_api.h>
@@ -59,7 +60,12 @@ static void mqtt_event_handler(void *handler_args, esp_event_base_t event_base, 
     xEventGroupClearBits(monitorPowerEventGroup, MQTT_CONNECTED_BIT);
   }
   else if(MQTT_EVENT_DATA== event_id) {
-    onMQTTUpdate(mqttEvent);
+    if(mqttEvent->topic){
+      ESP_LOGD(__FILE__, "MQTT data update for topic %.*s", mqttEvent->topic_len, mqttEvent->topic);
+    }
+    if(mqttEvent->total_data_len!=0){
+      onMQTTUpdate(mqttEvent);
+    }
   }
 }
 
@@ -134,6 +140,7 @@ extern "C" void app_main(void) {
   subscribeToAppUpdatesOverMQTT();
 #if 1
 //  startTaskForwardMasterBusPacketsToMQTT();
+  esp_ota_mark_app_valid_cancel_rollback();
   taskForwardMasterBusPacketsToMQTT();
 #endif
 }
