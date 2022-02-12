@@ -27,7 +27,9 @@ void initializeMasterbus(){
   ESP_ERROR_CHECK(spiDevice->init());
   MCP2515Class* mcp2515Rx=new MCP2515Class(spiDevice, SPI_CS_PIN, SPI_INT_PIN, 8E6);
   g_mbctl=new MasterbusController(mcp2515Rx);
-  ESP_ERROR_CHECK(g_mbctl->configure(MCP2515Class::NORMAL_MODE));
+  if(g_mbctl->configure(MCP2515Class::NORMAL_MODE)!=ESP_OK){
+    ESP_LOGW(TAG, "Failed to configure canbus controller");
+  }
 
   ESP_LOGD(TAG, "End");
 }
@@ -69,10 +71,29 @@ void mqttPublishHexValue(const char* topic, std::string& payloadBytes){
   free(hexBytes);
 }
 
-void taskForwardMasterBusPacketsToMQTT(){
-  MvParser mvParser;
+void handleReceivedMastervoltMessage(MastervoltMessage* mvMessage){
   char topic[128];
   char valueStr[128];
+  ESP_LOGI(TAG, "Handling mastervolt message %s", mvMessage->toString().c_str());
+  sprintf(topic, "masterbus/0x%02X/0x%02X", mvMessage->deviceUniqueId, mvMessage->attributeId);
+  if(MastervoltMessage::MastervoltMessageType::FLOAT == mvMessage->type) {
+    sprintf(valueStr, "%f", mvMessage->value.floatValue);
+    publishToMQTT(topic, valueStr);
+  }
+  else if(MastervoltMessage::MastervoltMessageType::DATE == mvMessage->type) {
+    sprintf(valueStr, "%02d/%02d/%d", mvMessage->value.day, mvMessage->value.month, mvMessage->value.year);
+    publishToMQTT(topic, valueStr);
+    //TODO Set the device's local time from this
+  }
+  else if(MastervoltMessage::MastervoltMessageType::TIME == mvMessage->type) {
+    sprintf(valueStr, "%02d:%02d:%02d", mvMessage->value.hour, mvMessage->value.minute, mvMessage->value.second);
+    publishToMQTT(topic, valueStr);
+    //TODO Set the device's local time from this
+  }
+}
+
+void taskForwardMasterBusPacketsToMQTT(){
+  MvParser mvParser;
 
   g_mbctl->startCANBusPump();
   CANBusPacket rxPacket;
@@ -86,23 +107,7 @@ void taskForwardMasterBusPacketsToMQTT(){
       if(NULL==mvMessage){
         continue;
       }
-
-      ESP_LOGI(TAG, "Parsed a mastervolt message %s", mvMessage->toString().c_str());
-      sprintf(topic, "masterbus/0x%02X/0x%02X", mvMessage->deviceUniqueId, mvMessage->attributeId);
-      if(MastervoltMessage::MastervoltMessageType::FLOAT == mvMessage->type) {
-        sprintf(valueStr, "%f", mvMessage->value.floatValue);
-        publishToMQTT(topic, valueStr);
-      }
-      else if(MastervoltMessage::MastervoltMessageType::DATE == mvMessage->type) {
-        sprintf(valueStr, "%02d/%02d/%d", mvMessage->value.day, mvMessage->value.month, mvMessage->value.year);
-        publishToMQTT(topic, valueStr);
-        //TODO Set the device's local time from this
-      }
-      else if(MastervoltMessage::MastervoltMessageType::TIME == mvMessage->type) {
-        sprintf(valueStr, "%02d:%02d:%02d", mvMessage->value.hour, mvMessage->value.minute, mvMessage->value.second);
-        publishToMQTT(topic, valueStr);
-        //TODO Set the device's local time from this
-      }
+      handleReceivedMastervoltMessage(mvMessage);
       delete mvMessage;
     }
   }

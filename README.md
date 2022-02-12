@@ -24,7 +24,8 @@ TODO
 - Add support for mDNS lookup of the MQTT broker
 - Augment the MPPT data with stats such as max yield, min/max battery voltage
 - Make the values more human readable instead of the basic registers? Maybe put the registers in one topic, and the human readable in other topics?
-- The device disconnects from the Wifi and has a hard time re-connecting.
+- Add OTA updates.Thru MQTT or direct socket connection?
+- Add remote logging
 
 Data augmentation
 ==
@@ -39,8 +40,10 @@ Data augmentation
   - did the solar start producing?
   - was the production greater or equal to the consumption?
   - did the solar stop producing?
-  - 
+- History
+- Does one MPPT produce less than it should, indicating a problem?
 
+Some of these require long term data storage. Is this project the right layer?
 
 MQTT Schema
 ===========
@@ -59,11 +62,23 @@ MQTT Schema
         edbc  MPPT output (CentiWatt)
         edef  Always seen 12. Maybe the 12v settings?
         ec3e  probably true/false. Seen 1. (Not charger enabled flag, not load output)
+        
+    /masterbus/0x31297/
+        0x00  DC Shunt Percent charge
+        0x01  DC Shunt voltage
+        0x02  DC Shunt Amps flow
+        0x03  DC Shunt Consumed amps
+
+    /masterbus/0x2F412/
+        0x0B  Inverter 120v amp flow
+        0x14  Inverter state
 
 Issue
 ---
 When Wifi connection is lost, it somehow affects the BLE scanning. If we try to re-start the scanning before the Wifi is connected, the wifi is unable to connect.
-Maybe send all events back to the main app for handling? Implement a FMS? Turns, out Wifi and BLE timeshare the same RF system. So either BLE is receiving, or Wifi is TXing. Possible solutions: 
-1- Tune the co-existance parameters. 
-2- Disable Software Wifi/BLE coexistance and implement hardware control. We would listen on BLE for a while, accumulate results, switch to Wifi (using GPIO pins?) send results. 
-3- Use the veDirect HEX protocol with the serial multiplexer.
+Maybe send all events back to the main app for handling? Implement a FMS? Turns, out Wifi and BLE timeshare the same RF system. So either BLE is receiving, or Wifi is TXing. 
+Possible solutions: 
+1- Tune the co-existance parameters. Ensure the BLE scanning gets restarted on a regular basis?
+2- Use the veDirect HEX protocol with the serial multiplexer. Am worried about galvanic isolation. Also I got noise problems, as shown with failing checksums.
+3- Disable Software Wifi/BLE coexistance and implement hardware control. We would listen on BLE for a while, accumulate results, switch to Wifi (using GPIO pins?) send results. 
+  `

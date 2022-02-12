@@ -12,18 +12,19 @@
 #include <cstring>
 
 void configureWifiNetworking(esp_event_handler_t appWifiEventHandler);
-void startMQTTClient(mqtt_event_callback_t);
+void startMQTTClient(esp_event_handler_t );
 void configureBLENetworking();
 void configureVeNetworking();
 void configureMasterbus();
 void startTaskForwardMasterBusPacketsToMQTT();
 void taskForwardMasterBusPacketsToMQTT();
 void configureMqttAugmentation();
+void sendOurStatusToMQTT();
 
 void uploadAppInfoToMQTT();
 void uploadCoreDumpFromFlashIntoMQTTTopic();
 void subscribeToAppUpdatesOverMQTT();
-void onAppUpdateNotification(esp_mqtt_event_handle_t event);
+void onMQTTUpdate(esp_mqtt_event_handle_t event);
 
 static EventGroupHandle_t monitorPowerEventGroup;
 const int WIFI_CONNECTED_BIT = BIT0;
@@ -43,27 +44,25 @@ void waitForWifiConnection(){
 }
 
 
-esp_err_t mqtt_event_handler(esp_mqtt_event_handle_t event) {
-  if (NULL == event) {
-    return 0;
-  }
+static void mqtt_event_handler(void *handler_args, esp_event_base_t event_base, int32_t event_id, void *event_data){
+  esp_mqtt_event_handle_t mqttEvent = (esp_mqtt_event_handle_t) event_data;
+  if (MQTT_EVENT_CONNECTED == event_id) {
+    ESP_LOGI(__FILE__, "MQTT Connected");
+    sendOurStatusToMQTT();
 
-  if (MQTT_EVENT_CONNECTED == event->event_id) {
-    ESP_LOGI(__FILE__, "MQTT Connected, starting BLE scanning");
+    ESP_LOGI(__FILE__, "starting BLE scanning");
     xEventGroupSetBits(monitorPowerEventGroup, MQTT_CONNECTED_BIT);
     ESP_ERROR_CHECK_WITHOUT_ABORT(esp_ble_gap_start_scanning(0xffffffff));
   }
-  else if (MQTT_EVENT_DISCONNECTED == event->event_id) {
+  else if (MQTT_EVENT_DISCONNECTED == event_id) {
     ESP_LOGE(__FILE__, "MQTT Disconnected");
     xEventGroupClearBits(monitorPowerEventGroup, MQTT_CONNECTED_BIT);
   }
-  else if(MQTT_EVENT_DATA== event->event_id) {
-    ESP_LOGE(__FILE__, "MQTT data update for topic %s", event->topic);
-    onAppUpdateNotification(event);
+  else if(MQTT_EVENT_DATA== event_id) {
+    onMQTTUpdate(mqttEvent);
   }
-
-  return 0;
 }
+
 void waitForMQTTConnection(){
   ESP_LOGI(__FUNCTION__, "Waiting for MQTT");
   xEventGroupWaitBits(monitorPowerEventGroup, MQTT_CONNECTED_BIT, false, true, portMAX_DELAY);
