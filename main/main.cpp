@@ -2,7 +2,6 @@
 #include <freertos/task.h>
 #include <freertos/event_groups.h>
 
-#include <nvs_flash.h>
 #include <esp_system.h>
 #include <esp_event.h>
 #include <esp_ota_ops.h>
@@ -21,11 +20,13 @@ void startTaskForwardMasterBusPacketsToMQTT();
 void taskForwardMasterBusPacketsToMQTT();
 void configureMqttAugmentation();
 void sendOurStatusToMQTT();
+void configureFlash();
 
 void uploadAppInfoToMQTT();
 void uploadCoreDumpFromFlashIntoMQTTTopic();
 void subscribeToAppUpdatesOverMQTT();
 void onMQTTUpdate(esp_mqtt_event_handle_t event);
+void getLocalTimeFromNetwork();
 
 static EventGroupHandle_t monitorPowerEventGroup;
 const int WIFI_CONNECTED_BIT = BIT0;
@@ -73,16 +74,6 @@ void waitForMQTTConnection(){
   ESP_LOGI(__FUNCTION__, "Waiting for MQTT");
   xEventGroupWaitBits(monitorPowerEventGroup, MQTT_CONNECTED_BIT, false, true, portMAX_DELAY);
   ESP_LOGI(__FUNCTION__, "Done waiting for MQTT");
-}
-
-void configureFlash(){
-  esp_err_t ret=ESP_OK;
-  ret = nvs_flash_init();
-  if (ret == ESP_ERR_NVS_NO_FREE_PAGES || ret == ESP_ERR_NVS_NEW_VERSION_FOUND) {
-      ESP_ERROR_CHECK(nvs_flash_erase());
-      ret = nvs_flash_init();
-  }
-  ESP_ERROR_CHECK( ret );
 }
 
 void printHeapMemoryStats(void* args){
@@ -141,6 +132,7 @@ extern "C" void app_main(void) {
 #if 1
 //  startTaskForwardMasterBusPacketsToMQTT();
   esp_ota_mark_app_valid_cancel_rollback();
+  getLocalTimeFromNetwork();
   taskForwardMasterBusPacketsToMQTT();
 #endif
 }

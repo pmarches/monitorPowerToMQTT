@@ -12,6 +12,12 @@ config MPTM_WIFI_PASSWORD
     help
 	WiFi password (WPA or WPA2) to use.
 
+config MPTM_SNTP_HOSTNAME
+    string "SNTP hostname"
+    default "vYachtWifi.lan"
+    help
+  The hostname of the SNTP (Simple Network Time Protocol) server, to get the localtime from.
+
 config MPTM_MQTT_BROKER_URI
     string "MQTT Broker URI"
     default "mqtt://192.168.10.1"
