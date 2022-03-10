@@ -24,7 +24,6 @@ TODO
 - Add support for mDNS lookup of the MQTT broker
 - Augment the MPPT data with stats such as max yield, min/max battery voltage
 - Make the values more human readable instead of the basic registers? Maybe put the registers in one topic, and the human readable in other topics?
-- Add OTA updates.Thru MQTT or direct socket connection?
 - Add remote logging
 
 Data augmentation
@@ -33,9 +32,9 @@ Data augmentation
 - Network 
   - yield (min/max/median) over multiple days
   - Lifetime yield
-- How much time was spent in negative yield? (Too much load)
+- How much time was spent in negative amp flow? (Too much load)
 - Daily battery consumption
-- Daily solar consumption (yield)
+- Daily solar yield
 - At what time 
   - did the solar start producing?
   - was the production greater or equal to the consumption?
@@ -48,12 +47,14 @@ Some of these require long term data storage. Is this project the right layer?
 MQTT Schema
 ===========
 
+These HEX values correspond to the vedirect HEX protocol!
+
     /venetworking/MPPT_ID/
         0100  HEX Model type, capabilities and so on. 62A0==150|60, ...
         0102  HEX The firmware version in HEX
         2000  Only set on the mater mppt, 10 indicates master status?
-        2001  maybe target charge voltage. Does not change quickly, only on master device. Or Maybe max batt voltage? Seen 1419 1420 1424
-        2007  Yield Network watts produced? Only seen on master
+        2001  The networked target voltage. Does not change quickly, only on master device. Or Maybe max batt voltage? Seen 1419 1420 1424
+        2007  Only seen on master. Monotonic, increments every few seconds (not regular). Stops increasing when the sun goes down, but still increases by 5049 when at dusk, when the panels do not produce power. Increases more when in full sunlight. Maybe yield today or lifetime for the network?
         2008  Yield MPPT today
         200b  seen 1219 1229 1242 1246, only on master. Looks slow monotonic. Maybe day number?
         200c  Values seen: 3, 5 only on master (Maybe bulk/Float/Abs mode?)
@@ -72,13 +73,66 @@ MQTT Schema
     /masterbus/0x2F412/
         0x0B  Inverter 120v amp flow
         0x14  Inverter state
+        
+    /vedirect/MPPT_ID/
+
+    /vedirect/GROUP_GROUPID/
+        0x2027  Total DC input power (Panel)
+        Network status register
+        
 
 Issue
 ---
-When Wifi connection is lost, it somehow affects the BLE scanning. If we try to re-start the scanning before the Wifi is connected, the wifi is unable to connect.
-Maybe send all events back to the main app for handling? Implement a FMS? Turns, out Wifi and BLE timeshare the same RF system. So either BLE is receiving, or Wifi is TXing. 
-Possible solutions: 
-1- Tune the co-existance parameters. Ensure the BLE scanning gets restarted on a regular basis?
-2- Use the veDirect HEX protocol with the serial multiplexer. Am worried about galvanic isolation. Also I got noise problems, as shown with failing checksums.
-3- Disable Software Wifi/BLE coexistance and implement hardware control. We would listen on BLE for a while, accumulate results, switch to Wifi (using GPIO pins?) send results. 
-  `
+    We are missing some usefull fields per panel, especially when the panels is the master.
+    When Wifi connection is lost, it somehow affects the BLE scanning. If we try to re-start the scanning before the Wifi is connected, the wifi is unable to connect.
+    Maybe send all events back to the main app for handling? Implement a FMS? Turns, out Wifi and BLE timeshare the same RF system. So either BLE is receiving, or Wifi is TXing. 
+    Possible solutions: 
+    1- Tune the co-existance parameters. Ensure the BLE scanning gets restarted on a regular basis?
+    2- Use the veDirect HEX protocol with the serial multiplexer. Am worried about galvanic isolation. Also I got noise problems, as shown with failing checksums.
+    3- Disable Software Wifi/BLE coexistance and implement hardware control. We would listen on BLE for a while, accumulate results, switch to Wifi (using GPIO pins?) send results. 
+     
+Graphing
+===
+1- Use Watts instead of Amps
+2- Solar graphs:
+  - Network Power
+  - Network Yield (to date)
+  - Each MPPT Power and yield? Cummulative curve?
+
+3- Battery graph
+  - Power flow, power consumed
+  - Battery voltage (x2 axis)
+4- Midnight to midnight
+5- Show target charging voltages (absorbtion+float)
+
+
+Questions I want answers!
+--
+    Solar
+    At what time did the batteries start charging?
+    What was the maximum charging power to the batteries?
+    How is each MPPT performing relative to it’s history? Are they degrading?
+    How much power did we draw overnight?
+    How much dumpload power did we harness?
+    What was the lowest voltage that the batteries have reached?
+    At what time did the batteries reach full?
+    How much yield per MPPT, total network. Distribution amongst MPPTs
+    How much time did we spend in negative power during the day?
+    At what time did we start and stop producing solar?
+    What is the power deviation between Port arch and std arch? Yield also?
+    
+    
+    NMEA
+    Max wind gusts today, last hour
+    Extract KML file for the whole season
+    Where did we spend most of our time?
+    When did we loose GPS connection?
+    
+    
+    
+    
+    Meshtastic
+    Max range attained ever
+    Where is the dinghy?
+    Where is everyone? Magnetic Bearing+distance
+    Max somwewhat reliable range

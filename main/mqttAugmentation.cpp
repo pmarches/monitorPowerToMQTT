@@ -4,6 +4,8 @@
 #include <esp_log.h>
 #include <esp_sntp.h>
 
+#include <cmath>
+
 #define TAG __FUNCTION__
 
 class MovingWindowAverage {
@@ -11,7 +13,7 @@ public:
   float sum;
   size_t nbSamples;
 
-  MovingWindowAverage() : sum(0.0), nbSamples(0) {}
+  MovingWindowAverage() : sum(0), nbSamples(0) {}
 
   void addSample(float newSample){
     sum+=newSample;
@@ -19,6 +21,9 @@ public:
   }
 
   float getAverage(){
+    if(nbSamples==0){
+      return std::nanf("No samples");
+    }
     return sum/nbSamples;
   }
 
@@ -37,12 +42,6 @@ typedef enum {
 MovingWindowAverage averages[MAX_STAT_ITEM];
 //TimeSerie timeSeries[MAX_STAT_ITEM];
 
-void onTimeWindowElapsed(ENUM_STAT_ITEM statItem){
-//  timeSeries[statItem].
-  averages[statItem].getAverage();
-  averages[statItem].reset();
-}
-
 void onSaveToFlash(void* arg){
 
 }
@@ -51,15 +50,39 @@ void acceptStatItem(ENUM_STAT_ITEM statItem, float newValue){
   averages[statItem].addSample(newValue);
 }
 
+void onStatisticsTimerExhausted(void* args){
+  for(int i=0; i<MAX_STAT_ITEM; i++){
+    float averageForThisTimerPeriod=averages[i].getAverage();
+    if(std::isnan(averageForThisTimerPeriod)){
+      continue;
+    }
+    //  timeSeries[statItem].
+    averages[i].reset();
+  }
+}
+
 void configureMqttAugmentation() {
   acceptStatItem(BATTVOLTAGE, 12.34);
   acceptStatItem(AMPSFLOW, -45.34);
   acceptStatItem(AMPSCONSUMED, 160.3);
+
+  esp_timer_create_args_t timerArgs={
+      .callback=onStatisticsTimerExhausted,
+      .arg=NULL,
+      .dispatch_method=ESP_TIMER_TASK,
+      .name="Statistics timer",
+      .skip_unhandled_events= true
+  };
+  esp_timer_handle_t timerHandle;
+  ESP_ERROR_CHECK(esp_timer_create(&timerArgs, &timerHandle));
+  const int STAT_TIMER_MINUTES=15;
+  ESP_ERROR_CHECK(esp_timer_start_periodic(timerHandle, 10E6*60*STAT_TIMER_MINUTES));
+  //FIXME: The timer here starts now, not on top of the 15 minutes window...
 }
 
 void getLocalTimeFromNetwork(){
   sntp_setoperatingmode(SNTP_OPMODE_POLL);
-  sntp_setservername(0, CONFIG_MPTM_SNTP_HOSTNAME); //FIXME Can't get the DHCP server to give me a SNTP server address
+//  sntp_setservername(0, CONFIG_MPTM_SNTP_HOSTNAME); //Use this only if the DHCP server does not provide a SNTP server address
   sntp_set_sync_mode(SNTP_SYNC_MODE_IMMED);
   sntp_init();
   //The chrony SNTP server does not get GPS time if instruments are turned off. It thus sets is local stratum to 16 (KOD). Fix this with the command:

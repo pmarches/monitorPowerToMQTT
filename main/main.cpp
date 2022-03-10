@@ -95,7 +95,10 @@ void startHeapMonitorTimer(){
   ESP_ERROR_CHECK(esp_timer_start_periodic(timerHandle, 1000000));
 }
 
+void testMultiSerial();
+
 extern "C" void app_main(void) {
+  testMultiSerial();
   monitorPowerEventGroup = xEventGroupCreate();
 //  startHeapMonitorTimer();
 #if 0

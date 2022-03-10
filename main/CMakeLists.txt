@@ -5,7 +5,8 @@ set(COMPONENT_PRIV_REQUIRES )
 set(COMPONENT_SRCS "main.cpp" 
   bleNetwork.cpp 
   veNetworkingBleParser.cpp 
-  veAddress.cpp 
+  veAddress.cpp
+  multiserial.cpp
   tcpNetwork.cpp 
   mqttNetwork.cpp 
   stringUtils.cpp 
