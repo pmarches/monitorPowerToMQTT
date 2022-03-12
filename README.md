@@ -74,7 +74,7 @@ These HEX values correspond to the vedirect HEX protocol!
         0x0B  Inverter 120v amp flow
         0x14  Inverter state
         
-    /vedirect/MPPT_ID/
+    /vedirect/MPPT_SERIAL/0xREGID
 
     /vedirect/GROUP_GROUPID/
         0x2027  Total DC input power (Panel)

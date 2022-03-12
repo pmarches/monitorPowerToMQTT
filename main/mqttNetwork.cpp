@@ -96,7 +96,7 @@ void resolve_mdns_host(const char *host_name) {
 
 void publishToMQTT(const char* topic, const char* value){
   ESP_LOGD(TAG, "publish topic=%s value=%s", topic, value);
-  const int qos=1;
+  const int qos=0;
   const int retain=0;
 #if 1
   //The sdkconfig is such that MQTT packets are dropped when not connected. No need to track if we are connected or not.
@@ -112,6 +112,7 @@ void subscribeToAppUpdatesOverMQTT(){
   if(subscriptionId==-1){
     ESP_LOGE(__FUNCTION__, "Failed to subscribe to the app update topic");
   }
+  ESP_LOGI(TAG, "subscribed to app updates");
 }
 
 esp_err_t onOTAPacketReceived(int current_data_offset, uint8_t* data, int data_len, int total_data_len){

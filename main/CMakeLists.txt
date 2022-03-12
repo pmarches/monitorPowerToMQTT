@@ -1,11 +1,8 @@
 # Edit following two lines to set component requirements (see docs)
-set(COMPONENT_REQUIRES bt mdns mqtt masterbus-esp32 app_update espcoredump)
-set(COMPONENT_PRIV_REQUIRES )
+set(COMPONENT_REQUIRES nvs_flash mdns mqtt masterbus-esp32 app_update espcoredump)
+set(COMPONENT_PRIV_REQUIRES vedirect-hex-parser)
 
 set(COMPONENT_SRCS "main.cpp" 
-  bleNetwork.cpp 
-  veNetworkingBleParser.cpp 
-  veAddress.cpp
   multiserial.cpp
   tcpNetwork.cpp 
   mqttNetwork.cpp 

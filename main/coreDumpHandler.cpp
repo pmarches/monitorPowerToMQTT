@@ -123,7 +123,7 @@ void uploadAppInfoToMQTT(){
   const int retain=1;
   const int qos=1;
 
-  ESP_LOGD(TAG, "Begin");
+  ESP_LOGD(TAG, "Begin uploadAppInfoToMQTT");
   const esp_app_desc_t *appDesc=esp_ota_get_app_description();
   char topic[128];
   //TODO Change this to a single JSON payload to ensure atomic integrity?
@@ -146,6 +146,7 @@ void uploadAppInfoToMQTT(){
 //  coreDumpReport->applicationelfsha256.len=32;
 //  coreDumpReport->applicationelfsha256.data=malloc(coreDumpReport->applicationelfsha256.len);
 //  memcpy(coreDumpReport->applicationelfsha256.data, appDesc->app_elf_sha256, coreDumpReport->applicationelfsha256.len);
+  ESP_LOGD(TAG, "End uploadAppInfoToMQTT");
 }
 
 //FIXME Seems like we are running out of memory for uploading the coredump?

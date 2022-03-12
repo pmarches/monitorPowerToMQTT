@@ -7,9 +7,13 @@
 #include <esp_ota_ops.h>
 #include <esp_log.h>
 #include <mqtt_client.h>
+#if 0
 #include <esp_gap_ble_api.h>
+#endif
 
 #include <cstring>
+
+#define TAG __FILE__
 
 void configureWifiNetworking(esp_event_handler_t appWifiEventHandler);
 void startMQTTClient(esp_event_handler_t );
@@ -28,6 +32,8 @@ void subscribeToAppUpdatesOverMQTT();
 void onMQTTUpdate(esp_mqtt_event_handle_t event);
 void getLocalTimeFromNetwork();
 
+void taskForwardVEDirectSentenceToMQTT(void* arg);
+
 static EventGroupHandle_t monitorPowerEventGroup;
 const int WIFI_CONNECTED_BIT = BIT0;
 const int MQTT_CONNECTED_BIT = BIT1;
@@ -45,16 +51,17 @@ void waitForWifiConnection(){
   ESP_LOGI(__FUNCTION__, "Done Waiting for Wifi");
 }
 
-
 static void mqtt_event_handler(void *handler_args, esp_event_base_t event_base, int32_t event_id, void *event_data){
   esp_mqtt_event_handle_t mqttEvent = (esp_mqtt_event_handle_t) event_data;
   if (MQTT_EVENT_CONNECTED == event_id) {
     ESP_LOGI(__FILE__, "MQTT Connected");
+    xEventGroupSetBits(monitorPowerEventGroup, MQTT_CONNECTED_BIT);
     sendOurStatusToMQTT();
 
+#if 0
     ESP_LOGI(__FILE__, "starting BLE scanning");
-    xEventGroupSetBits(monitorPowerEventGroup, MQTT_CONNECTED_BIT);
     ESP_ERROR_CHECK_WITHOUT_ABORT(esp_ble_gap_start_scanning(0xffffffff));
+#endif
   }
   else if (MQTT_EVENT_DISCONNECTED == event_id) {
     ESP_LOGE(__FILE__, "MQTT Disconnected");
@@ -95,12 +102,7 @@ void startHeapMonitorTimer(){
   ESP_ERROR_CHECK(esp_timer_start_periodic(timerHandle, 1000000));
 }
 
-void testMultiSerial();
-
 extern "C" void app_main(void) {
-  testMultiSerial();
-  monitorPowerEventGroup = xEventGroupCreate();
-//  startHeapMonitorTimer();
 #if 0
   esp_log_level_set("*", ESP_LOG_WARNING);
 #else
@@ -113,16 +115,22 @@ extern "C" void app_main(void) {
 //  esp_log_level_set("./main/MCP2515.cpp", ESP_LOG_INFO);
 //  esp_log_level_set("CANBUS_HEXDUMP", ESP_LOG_DEBUG);
 
-  esp_log_level_set("./main/veNetworkingBleParser.cpp", ESP_LOG_INFO);
-  esp_log_level_set("./main/bleNetwork.cpp", ESP_LOG_INFO);
+  esp_log_level_set("./components/vedirect-hex-parser/main/vhp_parser.cpp", ESP_LOG_INFO);
+  esp_log_level_set("./components/vedirect-hex-parser/main/vhp_command.cpp", ESP_LOG_INFO);
+  esp_log_level_set("./components/vedirect-hex-parser/main/vhp_driver.cpp", ESP_LOG_INFO);
 //  esp_log_level_set("./main/mqttNetwork.cpp", ESP_LOG_DEBUG);
 #endif
+
+  monitorPowerEventGroup = xEventGroupCreate();
+//  startHeapMonitorTimer();
 
   configureFlash();
   configureMasterbus();
   configureWifiNetworking(appWifiEventHandler);
+#if 0
   configureVeNetworking();
   configureBLENetworking();
+#endif
 
   waitForWifiConnection();
   startMQTTClient(mqtt_event_handler);
@@ -130,9 +138,10 @@ extern "C" void app_main(void) {
   waitForMQTTConnection();
   uploadAppInfoToMQTT();
 //  uploadCoreDumpFromFlashIntoMQTTTopic(); //Out of memory?
-
   subscribeToAppUpdatesOverMQTT();
-#if 1
+  xTaskCreate(taskForwardVEDirectSentenceToMQTT, "taskForwardVEDirectSentenceToMQTT", 4096, NULL, 5, NULL);
+
+#if 0
 //  startTaskForwardMasterBusPacketsToMQTT();
   esp_ota_mark_app_valid_cancel_rollback();
   getLocalTimeFromNetwork();
