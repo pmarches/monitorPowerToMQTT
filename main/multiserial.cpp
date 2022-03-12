@@ -198,16 +198,21 @@ void mqttPublishVeDirectSentence(uint8_t channel, std::vector<VHParsedSentence*>
       ESP_LOGW(TAG, "Don't know how to MQTT publish sentence that is not a register");
       continue;
     }
+    const RegisterDesc* registerDesc=lookupRegister(sentence->registerId);
+    if(NULL==registerDesc){
+      printf("Did not find a description of this register\n");
+      continue;
+    }
 
     char topic[256];
     sprintf(topic, "vedirect/MPPT_%s/0x%02X", channelDesc[channel].serialNumber.c_str(), sentence->registerId);
 
     char value[128];
     if(sentence->type==VHParsedSentence::SIGNED_REGISTER){
-      sprintf(value, "%d", sentence->sentence.signedRegister->value);
+      sprintf(value, "%f", sentence->sentence.signedRegister->value*registerDesc->scale);
     }
     else if(sentence->type==VHParsedSentence::UNSIGNED_REGISTER){
-      sprintf(value, "%d", sentence->sentence.unsignedRegister->value);
+      sprintf(value, "%f", sentence->sentence.unsignedRegister->value*registerDesc->scale);
     }
     else if(sentence->type==VHParsedSentence::STRING){
       sprintf(value, "%s", sentence->sentence.stringValue->c_str());
@@ -251,5 +256,6 @@ void taskForwardVEDirectSentenceToMQTT(void* arg){
     }
     multiSerial.selectChannel(MultiplexedSerial::DISABLED_CHANNEL);
     vTaskDelayUntil(&xLastWakeTime, xFrequency);
+    xLastWakeTime = xTaskGetTickCount();
   }
 }

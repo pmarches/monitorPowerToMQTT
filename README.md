@@ -15,16 +15,18 @@ This project runs on ESP32 and is built with ESP-IDF. The installation steps are
 
 TODO
 ==
-- Get the AES key from the MPPT devices instead the klunky app hack. We will need to connect to the MPPT, send the PIN, issue some commands to get the AES key. Is that even possible?
-- Reduce power usage because we seem to draw too much for the masterbus
+- Values needs to be scaled to SI units.
+- Reduce power usage because we seem to sometime draw too much for the masterbus
   - Reduce BLE power usage esp_bredr_tx_power_set
-  - Go to sleep when solar panels are off
   - Turn off the micro controller LED to save power
+  - Go to sleep when solar panels are off
   
 - Add support for mDNS lookup of the MQTT broker
 - Augment the MPPT data with stats such as max yield, min/max battery voltage
-- Make the values more human readable instead of the basic registers? Maybe put the registers in one topic, and the human readable in other topics?
 - Add remote logging
+- Make the values more human readable instead of the basic registers? Maybe put the registers in one topic, and the human readable in other topics?
+- Cache value changes on the client side to reduce network load (and power usage)
+- 
 
 Data augmentation
 ==
@@ -74,22 +76,11 @@ These HEX values correspond to the vedirect HEX protocol!
         0x0B  Inverter 120v amp flow
         0x14  Inverter state
         
-    /vedirect/MPPT_SERIAL/0xREGID
+    /vedirect/MPPT/SERIAL/0xREGID
 
-    /vedirect/GROUP_GROUPID/
+    /vedirect/GROUP/GROUPID/
         0x2027  Total DC input power (Panel)
         Network status register
-        
-
-Issue
----
-    We are missing some usefull fields per panel, especially when the panels is the master.
-    When Wifi connection is lost, it somehow affects the BLE scanning. If we try to re-start the scanning before the Wifi is connected, the wifi is unable to connect.
-    Maybe send all events back to the main app for handling? Implement a FMS? Turns, out Wifi and BLE timeshare the same RF system. So either BLE is receiving, or Wifi is TXing. 
-    Possible solutions: 
-    1- Tune the co-existance parameters. Ensure the BLE scanning gets restarted on a regular basis?
-    2- Use the veDirect HEX protocol with the serial multiplexer. Am worried about galvanic isolation. Also I got noise problems, as shown with failing checksums.
-    3- Disable Software Wifi/BLE coexistance and implement hardware control. We would listen on BLE for a while, accumulate results, switch to Wifi (using GPIO pins?) send results. 
      
 Graphing
 ===
