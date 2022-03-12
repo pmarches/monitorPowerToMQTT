@@ -1,8 +1,10 @@
+#include <sstream>
+#include <vector>
+#include <map>
+
 #include <driver/uart.h>
 #include <driver/gpio.h>
 #include <esp_log.h>
-#include <sstream>
-#include <vector>
 #include <freertos/timers.h>
 
 #include <vhp_parser.h>
@@ -37,13 +39,36 @@ public:
 
 class MPPTParsedSentenceCache {
   std::map<uint16_t, std::string> stringCache;
+  std::map<uint16_t, uint32_t> unsignedCache;
+  std::map<uint16_t, int32_t> signedCache;
 public:
   /***
    * Returns true if the value for this register has changed
    */
-  bool update(uint16_t registerId, std::string& value);
-  bool update(uint16_t registerId, uint32_t value);
-  bool update(uint16_t registerId, int32_t value);
+  bool update(uint16_t registerId, std::string& value){
+    std::string oldValue=stringCache[registerId];
+    if(oldValue==value){
+      return false;
+    }
+    stringCache[registerId]=value;
+    return true;
+  }
+  bool update(uint16_t registerId, uint32_t value){
+    uint32_t oldValue=unsignedCache[registerId];
+    if(oldValue==value){
+      return false;
+    }
+    unsignedCache[registerId]=value;
+    return true;
+  }
+  bool update(uint16_t registerId, int32_t value){
+    int32_t oldValue=signedCache[registerId];
+    if(oldValue==value){
+      return false;
+    }
+    signedCache[registerId]=value;
+    return true;
+  }
 };
 
 class MPPTChannelDescriptor {
@@ -51,6 +76,7 @@ public:
   uint32_t nbBytesRx; //Stats to see if this work
   const ProductDescription *productDesc;
   std::string serialNumber;
+  MPPTParsedSentenceCache cache;
 };
 
 MPPTChannelDescriptor channelDesc[MultiplexedSerial::NB_CHANNELS];
@@ -198,6 +224,43 @@ void getMPPTInformationForEachChannel(){
 }
 
 void publishToMQTT(const char* topic, const char* value);
+
+void formatSentenceAndPublishToMQTT(uint8_t channel, VHParsedSentence* sentence){
+  if(NULL==sentence){
+    ESP_LOGW(TAG, "Can't publish NULL sentence");
+    return;
+  }
+  if(sentence->isRegister()==false){
+    ESP_LOGW(TAG, "Don't know how to MQTT publish sentence that is not a register");
+    return;
+  }
+
+  const RegisterDesc* registerDesc=lookupRegister(sentence->registerId);
+  if(NULL==registerDesc){
+    ESP_LOGW(TAG, "Did not find a description of register 0x%02X", sentence->registerId);
+    return;
+  }
+
+  char topic[256];
+  sprintf(topic, "vedirect/MPPT/%s/0x%02X", channelDesc[channel].serialNumber.c_str(), sentence->registerId);
+
+  char value[128];
+  if(sentence->type==VHParsedSentence::SIGNED_REGISTER){
+    sprintf(value, "%f", sentence->sentence.signedRegister->value*registerDesc->scale);
+  }
+  else if(sentence->type==VHParsedSentence::UNSIGNED_REGISTER){
+    sprintf(value, "%f", sentence->sentence.unsignedRegister->value*registerDesc->scale);
+  }
+  else if(sentence->type==VHParsedSentence::STRING){
+    sprintf(value, "%s", sentence->sentence.stringValue->c_str());
+  }
+  else {
+    ESP_LOGW(TAG, "Don't know how to MQTT publish sentence type %d", sentence->type);
+    return;
+  }
+  publishToMQTT(topic, value);
+}
+
 void mqttPublishVeDirectSentence(uint8_t channel, std::vector<VHParsedSentence*> sentences){
   for(int i=0; i<sentences.size(); i++){
     VHParsedSentence* sentence=sentences[i];
@@ -205,35 +268,38 @@ void mqttPublishVeDirectSentence(uint8_t channel, std::vector<VHParsedSentence*>
       ESP_LOGW(TAG, "Can't publish NULL sentence");
       continue;
     }
-    if(sentence->isRegister()==false){
-      ESP_LOGW(TAG, "Don't know how to MQTT publish sentence that is not a register");
-      continue;
-    }
-    const RegisterDesc* registerDesc=lookupRegister(sentence->registerId);
-    if(NULL==registerDesc){
-      printf("Did not find a description of this register\n");
-      continue;
-    }
-
-    char topic[256];
-    sprintf(topic, "vedirect/MPPT_%s/0x%02X", channelDesc[channel].serialNumber.c_str(), sentence->registerId);
-
-    char value[128];
-    if(sentence->type==VHParsedSentence::SIGNED_REGISTER){
-      sprintf(value, "%f", sentence->sentence.signedRegister->value*registerDesc->scale);
-    }
-    else if(sentence->type==VHParsedSentence::UNSIGNED_REGISTER){
-      sprintf(value, "%f", sentence->sentence.unsignedRegister->value*registerDesc->scale);
-    }
-    else if(sentence->type==VHParsedSentence::STRING){
-      sprintf(value, "%s", sentence->sentence.stringValue->c_str());
-    }
-    else {
-      ESP_LOGW(TAG, "Don't know how to MQTT publish sentence type %d", sentence->type);
-      continue;
-    }
-    publishToMQTT(topic, value);
+    formatSentenceAndPublishToMQTT(channel, sentence);
     delete sentence;
+  }
+}
+
+void acceptSentence(uint8_t channel, VHParsedSentence* sentence){
+  if(NULL==sentence){
+    ESP_LOGW(TAG, "Can't publish NULL sentence");
+    return;
+  }
+  if(sentence->isRegister()==false){
+    ESP_LOGW(TAG, "Don't know how to MQTT publish sentence that is not a register");
+    return;
+  }
+
+  if(sentence->type==VHParsedSentence::STRING){
+    bool needPublish=channelDesc[channel].cache.update(VHP_REG_PANEL_POWER, *sentence->sentence.stringValue);
+    if(needPublish){
+      formatSentenceAndPublishToMQTT(channel, sentence);
+    }
+  }
+  else if(sentence->type==VHParsedSentence::SIGNED_REGISTER){
+    bool needPublish=channelDesc[channel].cache.update(VHP_REG_PANEL_POWER, sentence->sentence.signedRegister->value);
+    if(needPublish){
+      formatSentenceAndPublishToMQTT(channel, sentence);
+    }
+  }
+  else if(sentence->type==VHParsedSentence::UNSIGNED_REGISTER){
+    bool needPublish=channelDesc[channel].cache.update(VHP_REG_PANEL_POWER, sentence->sentence.unsignedRegister->value);
+    if(needPublish){
+      formatSentenceAndPublishToMQTT(channel, sentence);
+    }
   }
 }
 
@@ -250,12 +316,11 @@ void taskForwardVEDirectSentenceToMQTT(void* arg){
   multiSerial.configure();
   getMPPTInformationForEachChannel();
 
-  TickType_t xLastWakeTime = xTaskGetTickCount();
-  const TickType_t xFrequency = 3000/portTICK_RATE_MS;
-
   while(true){
     for(int channel=0;; channel=(channel+1)%MultiplexedSerial::NB_CHANNELS) {
       multiSerial.selectChannel(channel);
+      acceptSentence(channel, driver.getRegisterValue(VHP_REG_PANEL_POWER));
+#if 0
       std::vector<VHParsedSentence*> registerResults;
       registerResults.push_back(driver.getRegisterValue(VHP_REG_PANEL_POWER));
       registerResults.push_back(driver.getRegisterValue(VHP_REG_PANEL_VOLTAGE));
@@ -264,9 +329,9 @@ void taskForwardVEDirectSentenceToMQTT(void* arg){
       registerResults.push_back(driver.getRegisterValue(VHP_REG_CHARGER_VOLTAGE));
       registerResults.push_back(driver.getRegisterValue(VHP_REG_DEVICE_MODE));
       mqttPublishVeDirectSentence(channel, registerResults);
+#endif
     }
     multiSerial.selectChannel(MultiplexedSerial::DISABLED_CHANNEL);
-    vTaskDelayUntil(&xLastWakeTime, xFrequency);
-    xLastWakeTime = xTaskGetTickCount();
+    vTaskDelay(1000/portTICK_RATE_MS);
   }
 }
