@@ -15,18 +15,15 @@ This project runs on ESP32 and is built with ESP-IDF. The installation steps are
 
 TODO
 ==
-- Values needs to be scaled to SI units.
 - Reduce power usage because we seem to sometime draw too much for the masterbus
   - Reduce BLE power usage esp_bredr_tx_power_set
   - Turn off the micro controller LED to save power
   - Go to sleep when solar panels are off
-  
 - Add support for mDNS lookup of the MQTT broker
 - Augment the MPPT data with stats such as max yield, min/max battery voltage
 - Add remote logging
 - Make the values more human readable instead of the basic registers? Maybe put the registers in one topic, and the human readable in other topics?
-- Cache value changes on the client side to reduce network load (and power usage)
-- 
+- Convert cache into a MPPT model.
 
 Data augmentation
 ==

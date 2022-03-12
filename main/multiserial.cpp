@@ -14,6 +14,7 @@
 
 #define TAG __FILE__
 
+void publishToMQTT(const char* topic, const char* value);
 
 class MultiplexedSerial : public VHPSerial {
 public:
@@ -71,6 +72,23 @@ public:
   }
 };
 
+class MPPTRegisterModel {
+  std::map<uint16_t, std::string> stringCache;
+public:
+  bool update(const uint16_t registerId, const std::string& newStringValue) {
+    auto oldValueIt=stringCache.find(registerId);
+    if(oldValueIt==stringCache.end()){
+      stringCache[registerId]=newStringValue;
+      return true;
+    }
+    if(oldValueIt->second==newStringValue){
+      return false;
+    }
+    stringCache[registerId]=newStringValue;
+    return true;
+  }
+};
+
 class MPPTChannelDescriptor {
 public:
   uint32_t nbBytesRx; //Stats to see if this work
@@ -83,6 +101,37 @@ MPPTChannelDescriptor channelDesc[MultiplexedSerial::NB_CHANNELS];
 
 MultiplexedSerial multiSerial;
 VHPDriver driver(&multiSerial);
+
+class NetworkOfMPPTModel {
+  uint32_t panelPowerPerMppt[MultiplexedSerial::NB_CHANNELS];
+
+  void publishNetworkStats() {
+    float networkPanelPower = 0.0;
+    for (int i = 0; i < MultiplexedSerial::NB_CHANNELS; i++) {
+      networkPanelPower += panelPowerPerMppt[i]*0.01;
+    }
+    char floatStr[16];
+    sprintf(floatStr, "%.02f", networkPanelPower);
+    publishToMQTT("vedirect/network/panelPower", floatStr);
+
+    for (int i = 0; i < MultiplexedSerial::NB_CHANNELS; i++) {
+      float shareOfNetwork=(panelPowerPerMppt[i]*0.01)/networkPanelPower;
+      sprintf(floatStr, "%.02f", shareOfNetwork);
+      char topic[128];
+      sprintf(topic, "vedirect/MPPT/%s/shareOfNetwork", channelDesc[i].serialNumber.c_str());
+      publishToMQTT(topic, floatStr);
+    }
+  }
+
+public:
+  void updatePanelPower(const uint8_t channel, uint32_t newPanelPower){
+    panelPowerPerMppt[channel]=newPanelPower;
+    if(channel==0){
+      publishNetworkStats();
+    }
+  }
+};
+NetworkOfMPPTModel mpptNetworkModel;
 
 MultiplexedSerial::MultiplexedSerial() {}
 
@@ -223,8 +272,6 @@ void getMPPTInformationForEachChannel(){
   }
 }
 
-void publishToMQTT(const char* topic, const char* value);
-
 void formatSentenceAndPublishToMQTT(uint8_t channel, VHParsedSentence* sentence){
   if(NULL==sentence){
     ESP_LOGW(TAG, "Can't publish NULL sentence");
@@ -261,18 +308,6 @@ void formatSentenceAndPublishToMQTT(uint8_t channel, VHParsedSentence* sentence)
   publishToMQTT(topic, value);
 }
 
-void mqttPublishVeDirectSentence(uint8_t channel, std::vector<VHParsedSentence*> sentences){
-  for(int i=0; i<sentences.size(); i++){
-    VHParsedSentence* sentence=sentences[i];
-    if(NULL==sentence){
-      ESP_LOGW(TAG, "Can't publish NULL sentence");
-      continue;
-    }
-    formatSentenceAndPublishToMQTT(channel, sentence);
-    delete sentence;
-  }
-}
-
 void acceptSentence(uint8_t channel, VHParsedSentence* sentence){
   if(NULL==sentence){
     ESP_LOGW(TAG, "Can't publish NULL sentence");
@@ -299,6 +334,9 @@ void acceptSentence(uint8_t channel, VHParsedSentence* sentence){
     bool needPublish=channelDesc[channel].cache.update(VHP_REG_PANEL_POWER, sentence->sentence.unsignedRegister->value);
     if(needPublish){
       formatSentenceAndPublishToMQTT(channel, sentence);
+      if(sentence->registerId==VHP_REG_PANEL_POWER){
+        mpptNetworkModel.updatePanelPower(channel, sentence->sentence.unsignedRegister->value);
+      }
     }
   }
 }
@@ -316,22 +354,18 @@ void taskForwardVEDirectSentenceToMQTT(void* arg){
   multiSerial.configure();
   getMPPTInformationForEachChannel();
 
+  TickType_t xLastWakeTime = xTaskGetTickCount();
   while(true){
-    for(int channel=0;; channel=(channel+1)%MultiplexedSerial::NB_CHANNELS) {
+    for(int channel=0;channel<MultiplexedSerial::NB_CHANNELS; channel++) {
       multiSerial.selectChannel(channel);
       acceptSentence(channel, driver.getRegisterValue(VHP_REG_PANEL_POWER));
-#if 0
-      std::vector<VHParsedSentence*> registerResults;
-      registerResults.push_back(driver.getRegisterValue(VHP_REG_PANEL_POWER));
-      registerResults.push_back(driver.getRegisterValue(VHP_REG_PANEL_VOLTAGE));
-      registerResults.push_back(driver.getRegisterValue(VHP_REG_PANEL_CURRENT));
-      registerResults.push_back(driver.getRegisterValue(VHP_REG_CHARGER_CURRENT));
-      registerResults.push_back(driver.getRegisterValue(VHP_REG_CHARGER_VOLTAGE));
-      registerResults.push_back(driver.getRegisterValue(VHP_REG_DEVICE_MODE));
-      mqttPublishVeDirectSentence(channel, registerResults);
-#endif
+      acceptSentence(channel, driver.getRegisterValue(VHP_REG_PANEL_VOLTAGE));
+      acceptSentence(channel, driver.getRegisterValue(VHP_REG_PANEL_CURRENT));
+      acceptSentence(channel, driver.getRegisterValue(VHP_REG_CHARGER_CURRENT));
+      acceptSentence(channel, driver.getRegisterValue(VHP_REG_CHARGER_VOLTAGE));
+      acceptSentence(channel, driver.getRegisterValue(VHP_REG_DEVICE_MODE));
     }
     multiSerial.selectChannel(MultiplexedSerial::DISABLED_CHANNEL);
-    vTaskDelay(1000/portTICK_RATE_MS);
+    vTaskDelayUntil(&xLastWakeTime, 1000/portTICK_RATE_MS);
   }
 }
