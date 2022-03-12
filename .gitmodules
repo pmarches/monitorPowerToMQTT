@@ -1,6 +1,3 @@
-[submodule "components/masterbus-esp32"]
-	path = components/masterbus-esp32
-	url = https://github.com/pmarches/masterbus-esp32.git
 [submodule "components/vedirect-hex-parser"]
 	path = components/vedirect-hex-parser
 	url = git@github.com:pmarches/vedirect-hex-parser.git
