@@ -127,10 +127,6 @@ extern "C" void app_main(void) {
   configureFlash();
   configureMasterbus();
   configureWifiNetworking(appWifiEventHandler);
-#if 0
-  configureVeNetworking();
-  configureBLENetworking();
-#endif
 
   waitForWifiConnection();
   startMQTTClient(mqtt_event_handler);
