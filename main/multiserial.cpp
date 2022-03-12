@@ -35,6 +35,17 @@ public:
   virtual void writeHexLine(const std::string& hexLine);
 };
 
+class MPPTParsedSentenceCache {
+  std::map<uint16_t, std::string> stringCache;
+public:
+  /***
+   * Returns true if the value for this register has changed
+   */
+  bool update(uint16_t registerId, std::string& value);
+  bool update(uint16_t registerId, uint32_t value);
+  bool update(uint16_t registerId, int32_t value);
+};
+
 class MPPTChannelDescriptor {
 public:
   uint32_t nbBytesRx; //Stats to see if this work
