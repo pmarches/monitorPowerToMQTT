@@ -1,6 +1,7 @@
 #include <sstream>
 #include <vector>
 #include <map>
+#include <math.h>
 
 #include <driver/uart.h>
 #include <driver/gpio.h>
@@ -116,6 +117,9 @@ class NetworkOfMPPTModel {
 
     for (int i = 0; i < MultiplexedSerial::NB_CHANNELS; i++) {
       float shareOfNetwork=(panelPowerPerMppt[i]*0.01)/networkPanelPower;
+      if(isnan(shareOfNetwork)){
+        shareOfNetwork=0.0;
+      }
       sprintf(floatStr, "%.02f", shareOfNetwork);
       char topic[128];
       sprintf(topic, "vedirect/MPPT/%s/shareOfNetwork", channelDesc[i].serialNumber.c_str());
