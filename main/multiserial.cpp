@@ -21,12 +21,12 @@ public:
   const static int DISABLED_CHANNEL=7;
   const static uint8_t NB_CHANNELS=4;
 
-  const static gpio_num_t MULTI_SERIAL_S3_PIN=GPIO_NUM_32;
-  const static gpio_num_t MULTI_SERIAL_S2_PIN=GPIO_NUM_33;
-  const static gpio_num_t MULTI_SERIAL_S1_PIN=GPIO_NUM_25;
+  const static gpio_num_t MULTI_SERIAL_S3_PIN=GPIO_NUM_15;
+  const static gpio_num_t MULTI_SERIAL_S2_PIN=GPIO_NUM_16;
+  const static gpio_num_t MULTI_SERIAL_S1_PIN=GPIO_NUM_32;
 
-  const static gpio_num_t VEDIRECT_UART_TX_PIN=GPIO_NUM_17;
-  const static gpio_num_t VEDIRECT_UART_RX_PIN=GPIO_NUM_16;
+  const static gpio_num_t VEDIRECT_UART_TX_PIN=GPIO_NUM_33;
+  const static gpio_num_t VEDIRECT_UART_RX_PIN=GPIO_NUM_39;
   const static uart_port_t VEDIRECT_UART_NUM=UART_NUM_2;
 
   MultiplexedSerial();
@@ -152,18 +152,21 @@ void MultiplexedSerial::configureVEDirectUART(){
 }
 
 void MultiplexedSerial::configure() {
-  gpio_set_direction(MULTI_SERIAL_S3_PIN, GPIO_MODE_OUTPUT);
-  gpio_set_direction(MULTI_SERIAL_S2_PIN, GPIO_MODE_OUTPUT);
-  gpio_set_direction(MULTI_SERIAL_S1_PIN, GPIO_MODE_OUTPUT);
+  gpio_pad_select_gpio(MULTI_SERIAL_S3_PIN);
+  ESP_ERROR_CHECK(gpio_set_direction(MULTI_SERIAL_S3_PIN, GPIO_MODE_OUTPUT));
+  gpio_pad_select_gpio(MULTI_SERIAL_S2_PIN);
+  ESP_ERROR_CHECK(gpio_set_direction(MULTI_SERIAL_S2_PIN, GPIO_MODE_OUTPUT));
+  gpio_pad_select_gpio(MULTI_SERIAL_S1_PIN);
+  ESP_ERROR_CHECK(gpio_set_direction(MULTI_SERIAL_S1_PIN, GPIO_MODE_OUTPUT));
   selectChannel(MultiplexedSerial::DISABLED_CHANNEL);
   configureVEDirectUART();
 }
 
 void MultiplexedSerial::selectChannel(uint8_t channel) {
   ESP_LOGD(TAG, "channel %d selected", channel);
-  gpio_set_level(MULTI_SERIAL_S3_PIN, channel&0b100);
-  gpio_set_level(MULTI_SERIAL_S2_PIN, channel&0b010);
-  gpio_set_level(MULTI_SERIAL_S1_PIN, channel&0b001);
+  ESP_ERROR_CHECK(gpio_set_level(MULTI_SERIAL_S3_PIN, channel&0b100));
+  ESP_ERROR_CHECK(gpio_set_level(MULTI_SERIAL_S2_PIN, channel&0b010));
+  ESP_ERROR_CHECK(gpio_set_level(MULTI_SERIAL_S1_PIN, channel&0b001));
 }
 
 const std::string MultiplexedSerial::readLine() {
@@ -249,6 +252,13 @@ void getMPPTInformationForEachChannel(){
 //  ESP_LOG_BUFFER_HEX_LEVEL(TAG, startupCommand.c_str(), startupCommand.size(), ESP_LOG_DEBUG);
 //  ESP_LOGD(TAG, "startupCommand=%.*s", startupCommand.size(), startupCommand.c_str());
 
+  for(int channel=0; channel<MultiplexedSerial::NB_CHANNELS; channel++){
+    ESP_LOGI(TAG, "Testing Channel %d", channel);
+    multiSerial.selectChannel(channel);
+    vTaskDelay(1000 / portTICK_RATE_MS);
+  }
+
+  //FIXME This code hangs if one of the MPPT is disconnected
   for(int channel=0; channel<MultiplexedSerial::NB_CHANNELS; channel++){
     multiSerial.selectChannel(channel);
 #if 0
@@ -356,7 +366,9 @@ void taskForwardVEDirectSentenceToMQTT(void* arg){
 
   TickType_t xLastWakeTime = xTaskGetTickCount();
   while(true){
-    for(int channel=0;channel<MultiplexedSerial::NB_CHANNELS; channel++) {
+    const uint8_t CHANNELS_TO_USE[MultiplexedSerial::NB_CHANNELS]={0,1,2,3};
+    for(int i=0;i<MultiplexedSerial::NB_CHANNELS; i++) {
+      uint8_t channel=CHANNELS_TO_USE[i];
       multiSerial.selectChannel(channel);
       acceptSentence(channel, driver.getRegisterValue(VHP_REG_PANEL_POWER));
       acceptSentence(channel, driver.getRegisterValue(VHP_REG_PANEL_VOLTAGE));

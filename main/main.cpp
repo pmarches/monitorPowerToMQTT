@@ -135,12 +135,10 @@ extern "C" void app_main(void) {
   uploadAppInfoToMQTT();
 //  uploadCoreDumpFromFlashIntoMQTTTopic(); //Out of memory?
   subscribeToAppUpdatesOverMQTT();
-  xTaskCreate(taskForwardVEDirectSentenceToMQTT, "taskForwardVEDirectSentenceToMQTT", 4096, NULL, 5, NULL);
+  xTaskCreate(taskForwardVEDirectSentenceToMQTT, "taskForwardVEDirectSentenceToMQTT", 4096, NULL, tskIDLE_PRIORITY, NULL);
 
-#if 0
 //  startTaskForwardMasterBusPacketsToMQTT();
   esp_ota_mark_app_valid_cancel_rollback();
   getLocalTimeFromNetwork();
   taskForwardMasterBusPacketsToMQTT();
-#endif
 }
