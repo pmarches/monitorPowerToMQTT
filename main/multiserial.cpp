@@ -12,6 +12,7 @@
 #include <vhp_command.h>
 #include <vhp_registers.h>
 #include <vhp_driver.h>
+#include <vhp_batchstreaming.h>
 
 #define TAG __FILE__
 
@@ -19,8 +20,14 @@ void publishToMQTT(const char* topic, const char* value);
 
 class MultiplexedSerial : public VHPSerial {
 public:
-  const static int DISABLED_CHANNEL=7;
-  const static uint8_t NB_CHANNELS=4;
+  const static int DISABLED_CHANNEL=5;
+  const static uint8_t NB_MPPT=4;
+  //Cable Order cable end first to the board: Blue,Orange,Brown, Green
+  const static uint8_t BLUE_CHANNEL=7;
+  const static uint8_t ORANGE_CHANNEL=6;
+  const static uint8_t BROWN_CHANNEL=1;
+  const static uint8_t GREEN_CHANNEL=0;
+  const static uint8_t CHANNELS_TO_USE[MultiplexedSerial::NB_MPPT];
 
   const static gpio_num_t MULTI_SERIAL_S3_PIN=GPIO_NUM_15;
   const static gpio_num_t MULTI_SERIAL_S2_PIN=GPIO_NUM_16;
@@ -37,6 +44,13 @@ public:
   virtual const std::string readLine();
   const std::string readBufferFully();
   virtual void writeHexLine(const std::string& hexLine);
+};
+
+const uint8_t MultiplexedSerial::CHANNELS_TO_USE[MultiplexedSerial::NB_MPPT]={
+    MultiplexedSerial::GREEN_CHANNEL,
+    MultiplexedSerial::BROWN_CHANNEL,
+    MultiplexedSerial::ORANGE_CHANNEL,
+    MultiplexedSerial::BLUE_CHANNEL,
 };
 
 class MPPTParsedSentenceCache {
@@ -98,39 +112,39 @@ public:
   MPPTParsedSentenceCache cache;
 };
 
-MPPTChannelDescriptor channelDesc[MultiplexedSerial::NB_CHANNELS];
+MPPTChannelDescriptor channelDesc[MultiplexedSerial::NB_MPPT];
 
 MultiplexedSerial multiSerial;
 VHPDriver driver(&multiSerial);
 
 class NetworkOfMPPTModel {
-  uint32_t panelPowerPerMppt[MultiplexedSerial::NB_CHANNELS];
+  uint32_t panelPowerPerMppt[MultiplexedSerial::NB_MPPT];
 
   void publishNetworkStats() {
     float networkPanelPower = 0.0;
-    for (int i = 0; i < MultiplexedSerial::NB_CHANNELS; i++) {
+    for (int i = 0; i < MultiplexedSerial::NB_MPPT; i++) {
       networkPanelPower += panelPowerPerMppt[i]*0.01;
     }
     char floatStr[16];
     sprintf(floatStr, "%.02f", networkPanelPower);
     publishToMQTT("vedirect/network/panelPower", floatStr);
 
-    for (int i = 0; i < MultiplexedSerial::NB_CHANNELS; i++) {
+    for (int i = 0; i < MultiplexedSerial::NB_MPPT; i++) {
       float shareOfNetwork=(panelPowerPerMppt[i]*0.01)/networkPanelPower;
       if(isnan(shareOfNetwork)){
         shareOfNetwork=0.0;
       }
       sprintf(floatStr, "%.02f", shareOfNetwork);
       char topic[128];
-      sprintf(topic, "vedirect/MPPT/%s/shareOfNetwork", channelDesc[i].serialNumber.c_str());
+      sprintf(topic, "vedirect/%s/shareOfNetwork", channelDesc[i].serialNumber.c_str());
       publishToMQTT(topic, floatStr);
     }
   }
 
 public:
-  void updatePanelPower(const uint8_t channel, uint32_t newPanelPower){
-    panelPowerPerMppt[channel]=newPanelPower;
-    if(channel==0){
+  void updatePanelPower(const uint8_t mpptIndex, uint32_t newPanelPower){
+    panelPowerPerMppt[mpptIndex]=newPanelPower;
+    if(mpptIndex==0){
       publishNetworkStats();
     }
   }
@@ -162,15 +176,18 @@ void MultiplexedSerial::configure() {
   ESP_ERROR_CHECK(gpio_set_direction(MULTI_SERIAL_S2_PIN, GPIO_MODE_OUTPUT));
   gpio_pad_select_gpio(MULTI_SERIAL_S1_PIN);
   ESP_ERROR_CHECK(gpio_set_direction(MULTI_SERIAL_S1_PIN, GPIO_MODE_OUTPUT));
-  selectChannel(MultiplexedSerial::DISABLED_CHANNEL);
+  selectChannel(MultiplexedSerial::GREEN_CHANNEL);
   configureVEDirectUART();
 }
 
 void MultiplexedSerial::selectChannel(uint8_t channel) {
   ESP_LOGD(TAG, "channel %d selected", channel);
-  ESP_ERROR_CHECK(gpio_set_level(MULTI_SERIAL_S3_PIN, channel&0b100));
-  ESP_ERROR_CHECK(gpio_set_level(MULTI_SERIAL_S2_PIN, channel&0b010));
-  ESP_ERROR_CHECK(gpio_set_level(MULTI_SERIAL_S1_PIN, channel&0b001));
+  ESP_ERROR_CHECK(gpio_set_level(MULTI_SERIAL_S3_PIN, (channel&0b100)>>2));
+  ESP_ERROR_CHECK(gpio_set_level(MULTI_SERIAL_S2_PIN, (channel&0b010)>>1));
+  ESP_ERROR_CHECK(gpio_set_level(MULTI_SERIAL_S1_PIN, (channel&0b001)>>0));
+
+  vTaskDelay(10 / portTICK_RATE_MS); //Let any remainign data from this channel come in
+  uart_flush(MultiplexedSerial::VEDIRECT_UART_NUM); //Discards anything left in the UART RX fifo
 }
 
 const std::string MultiplexedSerial::readLine() {
@@ -189,7 +206,7 @@ const std::string MultiplexedSerial::readLine() {
   char readBuffer[256];
   int nbBytesRead=0;
   while(true){
-    int ret = uart_read_bytes(MultiplexedSerial::VEDIRECT_UART_NUM, readBuffer+nbBytesRead, 1, 200 / portTICK_RATE_MS);
+    int ret = uart_read_bytes(MultiplexedSerial::VEDIRECT_UART_NUM, readBuffer+nbBytesRead, 1, 100 / portTICK_RATE_MS);
     if(ret<0){
       perror("Error reading from uart_read_bytes");
       exit(1);
@@ -208,32 +225,20 @@ const std::string MultiplexedSerial::readBufferFully() {
   std::stringstream ss;
   char readBuffer[256];
   while(true) {
-    int nbBytesRead = uart_read_bytes(MultiplexedSerial::VEDIRECT_UART_NUM, readBuffer, sizeof(readBuffer), 200 / portTICK_RATE_MS);
+    int nbBytesRead = uart_read_bytes(MultiplexedSerial::VEDIRECT_UART_NUM, readBuffer, sizeof(readBuffer), 100 / portTICK_RATE_MS);
     if(nbBytesRead<0){
       ESP_LOGE(TAG, "read error\n");
       exit(1);
     }
     ss.write(readBuffer, nbBytesRead);
     ESP_LOGD(TAG, "Added %d bytes to ss", nbBytesRead);
-    if(nbBytesRead<sizeof(readBuffer)){
+    if(nbBytesRead==0){
       break;
     }
   }
 
-  multiSerial.selectChannel(MultiplexedSerial::DISABLED_CHANNEL);
-  //Empty any remaining bytes that may have sneaked in between the read an the channel change
-  while(true) {
-    int nbBytesRead = uart_read_bytes(MultiplexedSerial::VEDIRECT_UART_NUM, readBuffer, sizeof(readBuffer), 0);
-    if(nbBytesRead==0){
-      break;
-    }
-    else if(nbBytesRead<0){
-      ESP_LOGE(TAG, "Some error occured while reading UART buffer");
-      break;
-    }
-    ESP_LOGD(TAG, "Added stray %d bytes to ss", nbBytesRead);
-    ss.write(readBuffer, nbBytesRead);
-  }
+//  multiSerial.selectChannel(MultiplexedSerial::DISABLED_CHANNEL);
+
   return ss.str();
 }
 
@@ -255,15 +260,18 @@ void getMPPTInformationForEachChannel(){
   std::string startupHexCommand=VHPBatchGetRegisters(startupRegisters, sizeof(startupRegisters)/sizeof(uint16_t));
 //  ESP_LOG_BUFFER_HEX_LEVEL(TAG, startupCommand.c_str(), startupCommand.size(), ESP_LOG_DEBUG);
 //  ESP_LOGD(TAG, "startupCommand=%.*s", startupCommand.size(), startupCommand.c_str());
-
-  for(int channel=0; channel<MultiplexedSerial::NB_CHANNELS; channel++){
+#if 1
+  for(int i=0; i<MultiplexedSerial::NB_MPPT; i++){
+    uint8_t channel=MultiplexedSerial::CHANNELS_TO_USE[i];
     ESP_LOGI(TAG, "Testing Channel %d", channel);
     multiSerial.selectChannel(channel);
     vTaskDelay(1000 / portTICK_RATE_MS);
   }
+#endif
 
   //FIXME This code hangs if one of the MPPT is disconnected
-  for(int channel=0; channel<MultiplexedSerial::NB_CHANNELS; channel++){
+  for(int i=0; i<MultiplexedSerial::NB_MPPT; i++){
+    uint8_t channel=MultiplexedSerial::CHANNELS_TO_USE[i];
     multiSerial.selectChannel(channel);
 #if 0
     multiSerial.writeHexLine(startupHexCommand); //TODO Sending the commands in batch might reduce latency, since we have 4 MPPTs to talk
@@ -275,18 +283,27 @@ void getMPPTInformationForEachChannel(){
       }
     }
 #else
-    channelDesc[channel].productDesc=driver.getProductId();
-    if(NULL!=channelDesc[channel].productDesc) {
-      ESP_LOGI(TAG, "Found product %s", channelDesc[channel].productDesc->productName);
-    }
-    channelDesc[channel].serialNumber=driver.getSerialNumber();
-    ESP_LOGI(TAG, "Serial number %s", channelDesc[channel].serialNumber.c_str());
+    channelDesc[i].productDesc=driver.getProductId();
+    channelDesc[i].serialNumber=driver.getSerialNumber();
 #endif
 //    vTaskDelay(2000 / portTICK_RATE_MS);
   }
+  ESP_LOGI(TAG, "Done with all channel");
+
+  for(int i=0; i<MultiplexedSerial::NB_MPPT; i++){
+    uint8_t channel=MultiplexedSerial::CHANNELS_TO_USE[i];
+    if(NULL!=channelDesc[i].productDesc) {
+      ESP_LOGI(TAG, "Channel %d: is product %s, serial number %s", channel, channelDesc[i].productDesc->productName, channelDesc[i].serialNumber.c_str());
+    }
+    else{
+      ESP_LOGI(TAG, "Channel %d: is NULL", channel);
+    }
+  }
+
+//  while(true) vTaskDelay(1000 / portTICK_RATE_MS);
 }
 
-void formatSentenceAndPublishToMQTT(uint8_t channel, VHParsedSentence* sentence){
+void formatSentenceAndPublishToMQTT(uint8_t mpptIndex, VHParsedSentence* sentence){
   if(NULL==sentence){
     ESP_LOGW(TAG, "Can't publish NULL sentence");
     return;
@@ -303,7 +320,7 @@ void formatSentenceAndPublishToMQTT(uint8_t channel, VHParsedSentence* sentence)
   }
 
   char topic[256];
-  sprintf(topic, "vedirect/MPPT/%s/0x%02X", channelDesc[channel].serialNumber.c_str(), sentence->registerId);
+  sprintf(topic, "vedirect/%s/0x%02X", channelDesc[mpptIndex].serialNumber.c_str(), sentence->registerId);
 
   char value[128];
   if(sentence->type==VHParsedSentence::SIGNED_REGISTER){
@@ -322,36 +339,75 @@ void formatSentenceAndPublishToMQTT(uint8_t channel, VHParsedSentence* sentence)
   publishToMQTT(topic, value);
 }
 
-void acceptSentence(uint8_t channel, VHParsedSentence* sentence){
+void acceptSentence(uint8_t mpptIndex, VHParsedSentence* sentence){
   if(NULL==sentence){
     ESP_LOGW(TAG, "Can't publish NULL sentence");
     return;
   }
   if(sentence->isRegister()==false){
     ESP_LOGW(TAG, "Don't know how to MQTT publish sentence that is not a register");
+    delete sentence;
     return;
   }
 
   if(sentence->type==VHParsedSentence::STRING){
-    bool needPublish=channelDesc[channel].cache.update(VHP_REG_PANEL_POWER, *sentence->sentence.stringValue);
+    bool needPublish=channelDesc[mpptIndex].cache.update(VHP_REG_PANEL_POWER, *sentence->sentence.stringValue);
     if(needPublish){
-      formatSentenceAndPublishToMQTT(channel, sentence);
+      formatSentenceAndPublishToMQTT(mpptIndex, sentence);
     }
   }
   else if(sentence->type==VHParsedSentence::SIGNED_REGISTER){
-    bool needPublish=channelDesc[channel].cache.update(VHP_REG_PANEL_POWER, sentence->sentence.signedRegister->value);
+    bool needPublish=channelDesc[mpptIndex].cache.update(VHP_REG_PANEL_POWER, sentence->sentence.signedRegister->value);
     if(needPublish){
-      formatSentenceAndPublishToMQTT(channel, sentence);
+      formatSentenceAndPublishToMQTT(mpptIndex, sentence);
     }
   }
   else if(sentence->type==VHParsedSentence::UNSIGNED_REGISTER){
-    bool needPublish=channelDesc[channel].cache.update(VHP_REG_PANEL_POWER, sentence->sentence.unsignedRegister->value);
+    bool needPublish=channelDesc[mpptIndex].cache.update(VHP_REG_PANEL_POWER, sentence->sentence.unsignedRegister->value);
     if(needPublish){
-      formatSentenceAndPublishToMQTT(channel, sentence);
+      formatSentenceAndPublishToMQTT(mpptIndex, sentence);
       if(sentence->registerId==VHP_REG_PANEL_POWER){
-        mpptNetworkModel.updatePanelPower(channel, sentence->sentence.unsignedRegister->value);
+        mpptNetworkModel.updatePanelPower(mpptIndex, sentence->sentence.unsignedRegister->value);
       }
     }
+  }
+  delete sentence;
+}
+
+void streamingSpike(){
+  ESP_LOGI(TAG, "Streaming begin");
+  VHPBatchStreaming streaming(&multiSerial);
+
+//  const uint16_t startupRegisters[]={VHP_REG_PRODUCT_ID, VHP_REG_MODEL_NAME, VHP_REG_DEVICE_MODE};
+//  std::string startupHexCommand=VHPBatchGetRegisters(startupRegisters, sizeof(startupRegisters)/sizeof(uint16_t));
+
+  while(true){
+#if 1
+    multiSerial.selectChannel(MultiplexedSerial::BROWN_CHANNEL);
+    vTaskDelay(1000/portTICK_RATE_MS);
+    streaming.parseOneSentence();
+
+    multiSerial.selectChannel(MultiplexedSerial::GREEN_CHANNEL);
+    vTaskDelay(1000/portTICK_RATE_MS);
+    streaming.parseOneSentence();
+
+    multiSerial.selectChannel(MultiplexedSerial::ORANGE_CHANNEL);
+    vTaskDelay(1000/portTICK_RATE_MS);
+    streaming.parseOneSentence();
+
+    multiSerial.selectChannel(MultiplexedSerial::BLUE_CHANNEL);
+    vTaskDelay(1000/portTICK_RATE_MS);
+    streaming.parseOneSentence();
+#else
+    multiSerial.selectChannel(6);
+    vTaskDelay(1000/portTICK_RATE_MS);
+    streaming.parseOneSentence();
+
+    multiSerial.selectChannel(7);
+    vTaskDelay(1000/portTICK_RATE_MS);
+    streaming.parseOneSentence();
+
+#endif
   }
 }
 
@@ -366,22 +422,22 @@ void acceptSentence(uint8_t channel, VHParsedSentence* sentence){
 void taskForwardVEDirectSentenceToMQTT(void* arg){
   ESP_LOGI(TAG, "taskForwardVEDirectSentenceToMQTT starting");
   multiSerial.configure();
+//  streamingSpike();
   getMPPTInformationForEachChannel();
 
   TickType_t xLastWakeTime = xTaskGetTickCount();
   while(true){
-    const uint8_t CHANNELS_TO_USE[MultiplexedSerial::NB_CHANNELS]={0,1,2,3};
-    for(int i=0;i<MultiplexedSerial::NB_CHANNELS; i++) {
-      uint8_t channel=CHANNELS_TO_USE[i];
+    for(int i=0;i<MultiplexedSerial::NB_MPPT; i++) {
+      uint8_t channel=MultiplexedSerial::CHANNELS_TO_USE[i];
       multiSerial.selectChannel(channel);
-      acceptSentence(channel, driver.getRegisterValue(VHP_REG_PANEL_POWER));
-      acceptSentence(channel, driver.getRegisterValue(VHP_REG_PANEL_VOLTAGE));
-      acceptSentence(channel, driver.getRegisterValue(VHP_REG_PANEL_CURRENT));
-      acceptSentence(channel, driver.getRegisterValue(VHP_REG_CHARGER_CURRENT));
-      acceptSentence(channel, driver.getRegisterValue(VHP_REG_CHARGER_VOLTAGE));
-      acceptSentence(channel, driver.getRegisterValue(VHP_REG_DEVICE_MODE));
+      acceptSentence(i, driver.getRegisterValue(VHP_REG_PANEL_POWER));
+      acceptSentence(i, driver.getRegisterValue(VHP_REG_PANEL_VOLTAGE));
+      acceptSentence(i, driver.getRegisterValue(VHP_REG_PANEL_CURRENT));
+      acceptSentence(i, driver.getRegisterValue(VHP_REG_CHARGER_CURRENT));
+      acceptSentence(i, driver.getRegisterValue(VHP_REG_CHARGER_VOLTAGE));
+      acceptSentence(i, driver.getRegisterValue(VHP_REG_DEVICE_MODE));
     }
-    multiSerial.selectChannel(MultiplexedSerial::DISABLED_CHANNEL);
+//    multiSerial.selectChannel(MultiplexedSerial::DISABLED_CHANNEL);
     vTaskDelayUntil(&xLastWakeTime, 1000/portTICK_RATE_MS);
   }
 }

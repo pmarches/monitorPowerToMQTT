@@ -137,8 +137,8 @@ extern "C" void app_main(void) {
   subscribeToAppUpdatesOverMQTT();
   xTaskCreate(taskForwardVEDirectSentenceToMQTT, "taskForwardVEDirectSentenceToMQTT", 4096, NULL, tskIDLE_PRIORITY, NULL);
 
-//  startTaskForwardMasterBusPacketsToMQTT();
   esp_ota_mark_app_valid_cancel_rollback();
   getLocalTimeFromNetwork();
+//  startTaskForwardMasterBusPacketsToMQTT();
   taskForwardMasterBusPacketsToMQTT();
 }
